@@ -5,3 +5,5 @@ dependencies:
   chrome: ">=0.6.5 <0.7.0"
 transformers:
 - chrome
+- $dart2js:
+    csp: true
