@@ -9,8 +9,10 @@
   },
 
   "permissions": [
+    "tabs",
     "webRequest",
     "webRequestBlocking",
-    "http://gateway.ipfs.io/"
+    "http://gateway.ipfs.io/",
+    "http://localhost:*/"
   ]
 }
