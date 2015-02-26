@@ -13,6 +13,6 @@
     "webRequest",
     "webRequestBlocking",
     "http://gateway.ipfs.io/",
-    "http://localhost:*/"
+    "http://*/"
   ]
 }
