@@ -23,9 +23,6 @@
     "declarativeContent",
     "webRequest",
     "webRequestBlocking",
-    "http://gateway.ipfs.io/ipfs/*",
-    "http://gateway.ipfs.io/ipns/*",
-    "http://localhost:*/ipfs/*",
-    "http://localhost:*/ipns/*"
+    "http://*/*"
   ]
 }
