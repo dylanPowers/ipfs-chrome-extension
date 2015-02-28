@@ -17,9 +17,8 @@ requires a simple click to copy the IFPS url, and links require a right click
 and where you would normally select "Copy link address" instead select "Copy as IPFS link".
 
 #### Things in the works
-* Fallback to gateway.ipfs.io when localhost is down
-* Ability to configure a custom localhost port or to use a gateway
-  somewhere else entirely
+* [Fallback to gateway.ipfs.io when the local gateway is down](https://github.com/dylanPowers/ipfs-chrome-extension/issues/2)
+* [Ability to configure a custom port or host to use as the gateway](https://github.com/dylanPowers/ipfs-chrome-extension/issues/3)
 
 Building
 --------
