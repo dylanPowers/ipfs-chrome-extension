@@ -2,7 +2,9 @@ IPFS Gateway Redirect Chrome Extension
 ======================================
 Now we can share gateway.ipfs.io urls around and still use IPFS in a distributed
 fashion. Plus those not in the know or with a broken build will still have
-everything work fine for them. Yay! =)
+everything work fine for them. Yay! =)  
+
+Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo
 
 What's it do?
 -------------
