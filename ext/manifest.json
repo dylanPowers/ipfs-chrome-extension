@@ -1,14 +1,16 @@
 {
-  "manifest_version": 2,
   "name": "IPFS Gateway Redirect",
+  "description": "Access http://gateway.ipfs.io/ urls the way they were meant: from your locally running ipfs daemon",
   "version": "0.1.0",
-
+  "manifest_version": 2,
   "background": {
     "page": "index.html",
     "persistent": true
   },
   "icons": {
-    "16": "ipfs-logo-128-white.png"
+    "16": "ipfs-logo-128-white.png",
+    "48": "ipfs-logo-128-white.png",
+    "128": "ipfs-logo-128-white.png"
   },
   "page_action": {
     "default_icon": {
