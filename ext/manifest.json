@@ -1,7 +1,7 @@
 {
   "name": "IPFS Gateway Redirect",
   "description": "Access http://gateway.ipfs.io/ urls the way they were meant: from your locally running ipfs daemon",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "manifest_version": 2,
   "background": {
     "page": "index.html",

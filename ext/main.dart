@@ -60,7 +60,7 @@ void addToClipboard(String text) {
 
 
 String addToClipboardAsIpfsUrl(String localUrl) {
-  var ipfsUrl = new Uri.http('gateway.ipfs.io', Uri.parse(localUrl).path);
+  var ipfsUrl = Uri.parse(localUrl).replace(host: 'gateway.ipfs.io', port: 80);
   addToClipboard(ipfsUrl.toString());
 }
 
@@ -126,7 +126,7 @@ void setupWebRequestRedirect() {
 
 JsObject webRequestOnBeforeRequestAction(JsObject data) {
   var ipfsUrl = data['url'];
-  var localhostUrl = new Uri.http('localhost:8080', Uri.parse(ipfsUrl).path);
+  var localhostUrl = Uri.parse(ipfsUrl).replace(host: 'localhost', port: 8080);
   var response = {
     'redirectUrl': localhostUrl.toString()
   };
