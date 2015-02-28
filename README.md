@@ -22,13 +22,12 @@ and where you would normally select "Copy link address" instead select "Copy as 
 
 Building
 --------
-You can probably see that this is implemented in Dart. To make a Javascript
-build simply run:
+You can probably see that this is implemented in Dart, and running it is as simple
+as loading the ```ext``` directory directly into Dartium as per the instructions
+at https://developer.chrome.com/extensions/getstarted#unpacked. 
+To run the extension in a standard Chrome browser, you'll have to first compile
+it to Javascript. To make a Javascript build simply run:
 ```sh
 pub build ext --mode debug  ## Default mode is production which minifies the JS
 ```
-The build will output to ```build/ext```. To load the extension into your
-browser, follow the instructions at
-https://developer.chrome.com/extensions/getstarted#unpacked. So that you're not
-constantly compiling to Javascript, I'd recommend loading the extension's Dart
-code directly into Dartium which will run the extension natively.
+The build will output to ```build/ext``` for which you can load it from.
