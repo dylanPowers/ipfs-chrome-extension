@@ -17,6 +17,7 @@ void main() {
 
   // A page action is the little icon that appears in the URL bar.
   addListenerToChromeEvent(pageActionNamespace, 'onClicked', pageActionOnClickedAction);
+
   addContextMenu();
   setupWebRequestRedirect();
 }
@@ -26,7 +27,10 @@ void addContextMenu() {
   var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
   var props = new JsObject.jsify({
     'contexts': ['link'],
-    'title': 'Copy as IPFS URL',
+
+    // This should match the default_title under page_action in the manifest
+    'title': 'Copy as IPFS link',
+
     'documentUrlPatterns': urlMatch,
     'targetUrlPatterns': urlMatch,
     'onclick': (JsObject info, JsObject tab) {
@@ -62,8 +66,9 @@ String addToClipboardAsIpfsUrl(String localUrl) {
 
 
 /**
- * This function purely exists because of a bug in the dart2js compiler. It
- * must be used anytime a Chrome Event object is accessed.
+ * This function exists purely because of a bug in the dart2js compiler. It
+ * must be used to properly access a Chrome Event object. Without it, vague
+ * meaningless errors when running as Javascript will crop up.
  * https://code.google.com/p/dart/issues/detail?id=20800
  */
 JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
@@ -83,6 +88,7 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
 void onInstalledAction(JsObject details) {
   var pageStateMatcherArg = new JsObject.jsify({
     'pageUrl': {
+      // Chrome has globbing available everywhere but here
       'originAndPathMatches': '^http://localhost(:[[:digit:]]+)?\\/(ipfs|ipns)\\/.+',
       'schemes': ['http']
   }});

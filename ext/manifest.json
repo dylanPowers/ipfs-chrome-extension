@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "IPFS Extension",
+  "name": "IPFS Gateway Redirect",
   "version": "0.1.0",
 
   "background": {
@@ -15,7 +15,7 @@
       "19": "ipfs-logo-128-white.png",
       "38": "ipfs-logo-128-white.png"
     },
-    "default_title": "Copy IPFS hash link"
+    "default_title": "Copy as IPFS link"
   },
   "permissions": [
     "clipboardWrite",
