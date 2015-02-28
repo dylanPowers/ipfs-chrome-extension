@@ -1,32 +1,26 @@
 library ipfs_interceptor;
 
-import 'dart:async';
 import 'dart:html';
 import 'dart:js';
 
+// There is a Dart library for Chrome Apps and Extensions but it's pretty
+// broken so we're best off just accessing the JS API directly.
+JsObject contextMenusNamespace = context['chrome']['contextMenus'];
+JsObject declarativeContentNamespace = context['chrome']['declarativeContent'];
+JsObject pageActionNamespace = context['chrome']['pageAction'];
+JsObject runtimeNamespace = context['chrome']['runtime'];
+JsObject webRequestNamespace = context['chrome']['webRequest'];
+
+
 void main() {
-  JsObject runtimeNamespace = context['chrome']['runtime'];
   addListenerToChromeEvent(runtimeNamespace, 'onInstalled', onInstalledAction);
 
-  var onBeforeRequest = context['chrome']['webRequest']['onBeforeRequest'];
-  onBeforeRequest.callMethod('addListener', [
-    webRequestOnBeforeRequestAction,
-    new JsObject.jsify({
-      'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
-    }),
-    new JsObject.jsify(['blocking'])
-  ]);
-
-  JsObject pageActionNamespace = context['chrome']['pageAction'];
+  // A page action is the little icon that appears in the URL bar.
   addListenerToChromeEvent(pageActionNamespace, 'onClicked', pageActionOnClickedAction);
-
-  JsObject contextMenusNamespace = context['chrome']['contextMenus'];
-  addListenerToChromeEvent(contextMenusNamespace, 'onClicked', (JsObject info, JsObject tab) {
-    print('MenuId: ${info['menuItemId']}); url: ${info['linkUrl']}');
-  });
-
   addContextMenu();
+  setupWebRequestRedirect();
 }
+
 
 void addContextMenu() {
   var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
@@ -39,15 +33,39 @@ void addContextMenu() {
       addToClipboardAsIpfsUrl(info['linkUrl']);
     }
   });
-  JsObject contextMenusNamespace = context['chrome']['contextMenus'];
   contextMenusNamespace.callMethod('create', [props]);
 }
+
 
 void addListenerToChromeEvent(JsObject namespace, String eventName, Function callback) {
   var dartifiedEvent = dartifyChromeEvent(namespace, eventName);
   dartifiedEvent.callMethod('addListener', [callback]);
 }
 
+
+void addToClipboard(String text) {
+  // Yes this is a zany hack.
+  var tempEl = document.createElement('textarea');
+  document.body.append(tempEl);
+  tempEl.value = text;
+  tempEl.focus();
+  tempEl.select();
+  document.execCommand('copy', false, null);
+  tempEl.remove();
+}
+
+
+String addToClipboardAsIpfsUrl(String localUrl) {
+  var ipfsUrl = new Uri.http('gateway.ipfs.io', Uri.parse(localUrl).path);
+  addToClipboard(ipfsUrl.toString());
+}
+
+
+/**
+ * This function purely exists because of a bug in the dart2js compiler. It
+ * must be used anytime a Chrome Event object is accessed.
+ * https://code.google.com/p/dart/issues/detail?id=20800
+ */
 JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
   var event = namespace[eventName];
   JsObject dartifiedEvent;
@@ -61,19 +79,8 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
   return dartifiedEvent;
 }
 
-JsObject webRequestOnBeforeRequestAction(JsObject data) {
-  var urlString = data['url'];
-  var url = Uri.parse(urlString);
-  url = new Uri.http('localhost:8080', url.path);
-  print('$urlString => $url');
-  var response = {
-    'redirectUrl': url.toString()
-  };
-  return new JsObject.jsify(response);
-}
 
 void onInstalledAction(JsObject details) {
-  JsObject declarativeContentNamespace = context['chrome']['declarativeContent'];
   var pageStateMatcherArg = new JsObject.jsify({
     'pageUrl': {
       'originAndPathMatches': '^http://localhost(:[[:digit:]]+)?\\/(ipfs|ipns)\\/.+',
@@ -87,28 +94,35 @@ void onInstalledAction(JsObject details) {
       new JsObject(declarativeContentNamespace['ShowPageAction']),
     ]
   }]);
-  dartifyChromeEvent(declarativeContentNamespace, 'onPageChanged').callMethod('removeRules', [
-    null, () {
-    dartifyChromeEvent(declarativeContentNamespace, 'onPageChanged').callMethod('addRules', [rules]);
+  dartifyChromeEvent(declarativeContentNamespace,
+                     'onPageChanged').callMethod('removeRules', [null, () {
+      dartifyChromeEvent(declarativeContentNamespace,
+                         'onPageChanged').callMethod('addRules', [rules]);
   }]);
 }
+
 
 void pageActionOnClickedAction(JsObject tab) {
   addToClipboardAsIpfsUrl(tab['url']);
 }
 
-void addToClipboard(String text) {
-  // Yes this is a zany hack.
-  var tempEl = document.createElement('textarea');
-  document.body.append(tempEl);
-  tempEl.value = text;
-  tempEl.focus();
-  tempEl.select();
-  document.execCommand('copy', false, null);
-  tempEl.remove();
+
+void setupWebRequestRedirect() {
+  dartifyChromeEvent(webRequestNamespace, 'onBeforeRequest').callMethod('addListener', [
+    webRequestOnBeforeRequestAction,
+    new JsObject.jsify({
+      'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
+    }),
+    new JsObject.jsify(['blocking'])
+  ]);
 }
 
-String addToClipboardAsIpfsUrl(String localUrl) {
-  var ipfsUrl = new Uri.http('gateway.ipfs.io', Uri.parse(localUrl).path);
-  addToClipboard(ipfsUrl.toString());
+
+JsObject webRequestOnBeforeRequestAction(JsObject data) {
+  var ipfsUrl = data['url'];
+  var localhostUrl = new Uri.http('localhost:8080', Uri.parse(ipfsUrl).path);
+  var response = {
+    'redirectUrl': localhostUrl.toString()
+  };
+  return new JsObject.jsify(response);
 }

@@ -1,25 +1,19 @@
 {
   "manifest_version": 2,
   "name": "IPFS Extension",
-  "version": "0.0.1",
+  "version": "0.1.0",
 
   "background": {
     "page": "index.html",
     "persistent": true
   },
-//  "content_scripts": [
-//    {
-//      "matches": ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"],
-//      "js": ["content_script.js"]
-//    }
-//  ],
   "icons": {
-    "16": "ic_content_copy_black_18dp.png"
+    "16": "ipfs-logo-128-white.png"
   },
   "page_action": {
     "default_icon": {
-      "19": "ic_content_copy_black_18dp.png",
-      "38": "ic_content_copy_black_36dp.png"
+      "19": "ipfs-logo-128-white.png",
+      "38": "ipfs-logo-128-white.png"
     },
     "default_title": "Copy IPFS hash link"
   },
@@ -27,7 +21,6 @@
     "clipboardWrite",
     "contextMenus",
     "declarativeContent",
-    "tabs",
     "webRequest",
     "webRequestBlocking",
     "http://gateway.ipfs.io/ipfs/*",
