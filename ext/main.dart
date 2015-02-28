@@ -74,13 +74,14 @@ JsObject webRequestOnBeforeRequestAction(JsObject data) {
 
 void onInstalledAction(JsObject details) {
   JsObject declarativeContentNamespace = context['chrome']['declarativeContent'];
+  var pageStateMatcherArg = new JsObject.jsify({
+    'pageUrl': {
+      'originAndPathMatches': '^http://localhost(:[[:digit:]]+)?\\/(ipfs|ipns)\\/.+',
+      'schemes': ['http']
+  }});
   var rules = new JsObject.jsify([{
     'conditions': [
-      new JsObject(declarativeContentNamespace['PageStateMatcher'], [{
-        'pageUrl': {
-          'originAndPathMatches': '^localhost(:[[:digit:]]+)?\/(ipfs|ipns)\/.+',
-          'schemes': ['http']
-      }}])
+      new JsObject(declarativeContentNamespace['PageStateMatcher'], [pageStateMatcherArg])
     ],
     'actions': [
       new JsObject(declarativeContentNamespace['ShowPageAction']),
