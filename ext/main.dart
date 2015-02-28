@@ -24,25 +24,31 @@ void main() {
   addListenerToChromeEvent(contextMenusNamespace, 'onClicked', (JsObject info, JsObject tab) {
     print('MenuId: ${info['menuItemId']}); url: ${info['linkUrl']}');
   });
+
+  addContextMenu();
 }
 
-void addContextMenuAction() {
-  JsObject tabsNamespace = context['chrome']['tabs'];
-  tabsNamespace.callMethod('getCurrent', [(JsObject tab) {
-    String url = tab['url'];
-    var urlOrigin = Uri.parse(url).origin;
-    var props = new JsObject.jsify({
-      'contexts': ['link'],
-      'title': 'Copy as IPFS URL',
-      'documentUrlPatterns': ['$urlOrigin/ipfs/*', '$urlOrigin/ipns/*']
-    });
-    JsObject contextMenusNamespace = context['chrome']['contextMenus'];
-    contextMenusNamespace.callMethod('create', [props]);
-  }]);
-
+void addContextMenu() {
+  var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
+  var props = new JsObject.jsify({
+    'contexts': ['link'],
+    'title': 'Copy as IPFS URL',
+    'documentUrlPatterns': urlMatch,
+    'targetUrlPatterns': urlMatch,
+    'onclick': (JsObject info, JsObject tab) {
+      addToClipboardAsIpfsUrl(info['linkUrl']);
+    }
+  });
+  JsObject contextMenusNamespace = context['chrome']['contextMenus'];
+  contextMenusNamespace.callMethod('create', [props]);
 }
 
 void addListenerToChromeEvent(JsObject namespace, String eventName, Function callback) {
+  var dartifiedEvent = dartifyChromeEvent(namespace, eventName);
+  dartifiedEvent.callMethod('addListener', [callback]);
+}
+
+JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
   var event = namespace[eventName];
   JsObject dartifiedEvent;
   if (event is JsObject) {
@@ -52,7 +58,7 @@ void addListenerToChromeEvent(JsObject namespace, String eventName, Function cal
     dartifiedEvent = new JsObject.fromBrowserObject(event);
   }
 
-  dartifiedEvent.callMethod('addListener', [callback]);
+  return dartifiedEvent;
 }
 
 JsObject webRequestOnBeforeRequestAction(JsObject data) {
@@ -78,23 +84,30 @@ void onInstalledAction(JsObject details) {
     ],
     'actions': [
       new JsObject(declarativeContentNamespace['ShowPageAction']),
-      addContextMenuAction
     ]
   }]);
-  declarativeContentNamespace['onPageChanged'].callMethod('removeRules', [
+  dartifyChromeEvent(declarativeContentNamespace, 'onPageChanged').callMethod('removeRules', [
     null, () {
-    declarativeContentNamespace['onPageChanged'].callMethod('addRules', [rules]);
+    dartifyChromeEvent(declarativeContentNamespace, 'onPageChanged').callMethod('addRules', [rules]);
   }]);
 }
 
 void pageActionOnClickedAction(JsObject tab) {
+  addToClipboardAsIpfsUrl(tab['url']);
+}
+
+void addToClipboard(String text) {
   // Yes this is a zany hack.
   var tempEl = document.createElement('textarea');
   document.body.append(tempEl);
+  tempEl.value = text;
   tempEl.focus();
   tempEl.select();
-  tempEl.value = tab['url'];
   document.execCommand('copy', false, null);
   tempEl.remove();
 }
 
+String addToClipboardAsIpfsUrl(String localUrl) {
+  var ipfsUrl = new Uri.http('gateway.ipfs.io', Uri.parse(localUrl).path);
+  addToClipboard(ipfsUrl.toString());
+}
