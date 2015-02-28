@@ -6,7 +6,7 @@ everything work fine for them. Yay! =)
 
 What's it do?
 -------------
-It intercepts requests to http://gateway.ipfs.io/(ipfs|ipns)/<hash> on the
+It intercepts requests to ```http://gateway.ipfs.io/(ipfs|ipns)/<hash>``` on the
 fly and redirects them to the ipfs gateway you have running locally on
 port 8080. It also adds a context menu option and url bar icon that allow you
 to easily copy IPFS urls. This fixes urls so that they have the host correctly
