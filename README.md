@@ -12,7 +12,9 @@ It intercepts requests to ```http://gateway.ipfs.io/(ipfs|ipns)/<hash>``` on the
 fly and redirects them to the ipfs gateway you have running locally on
 port 8080. It also adds a context menu option and url bar icon that allow you
 to easily copy IPFS urls. This fixes urls so that they have the host correctly
-set to gateway.ipfs.io rather than localhost:8080.
+set to gateway.ipfs.io rather than localhost:8080. The url bar (aka Omnibox) icon 
+requires a simple click to copy the IFPS url, and links require a right click
+and where you would normally select "Copy link address" instead select "Copy as IPFS link".
 
 #### Things in the works
 * Fallback to gateway.ipfs.io when localhost is down
