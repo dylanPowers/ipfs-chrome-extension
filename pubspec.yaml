@@ -1,7 +1,6 @@
 name: IPFS Extension
 version: 0.0.1
 dependencies:
-  browser: any
   chrome: ">=0.6.5 <0.7.0"
 transformers:
 - chrome

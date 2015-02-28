@@ -5,10 +5,6 @@ packages:
     description: barback
     source: hosted
     version: "0.15.2+4"
-  browser:
-    description: browser
-    source: hosted
-    version: "0.10.0+2"
   chrome:
     description: chrome
     source: hosted
