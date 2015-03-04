@@ -1,5 +1,5 @@
 name: ipfs_gateway_redirect
-version: 0.2.0
+version: 0.2.1
 dependencies:
   chrome: ">=0.6.5 <0.7.0"
 transformers:
