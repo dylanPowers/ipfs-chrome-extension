@@ -83,7 +83,7 @@ void _setupContextMenu(HostServerSettings settings) {
   var server = 'http://${settings.host}:${settings.port}';
   var urlMatch = ['$server/ipfs/*', '$server/ipns/*'];
   var props = new JsObject.jsify({
-    'contexts': ['link'],
+    'contexts': ['frame', 'link', 'image', 'video', 'audio'],
 
     // This should match the default_title under page_action in the manifest
     'title': 'Copy as IPFS link',
@@ -91,7 +91,15 @@ void _setupContextMenu(HostServerSettings settings) {
     'documentUrlPatterns': urlMatch,
     'targetUrlPatterns': urlMatch,
     'onclick': (JsObject info, JsObject tab) {
-      addToClipboardAsIpfsUrl(info['linkUrl']);
+      // Fuck this...4 different names for the same thing? Why????
+      var possibleKeys = ['linkUrl', 'srcUrl', 'pageUrl', 'frameUrl'];
+      bool keyFound;
+      for (num i = 0; i < possibleKeys.length && !keyFound; ++i) {
+        if (info.hasProperty(possibleKeys[i])) {
+          addToClipboardAsIpfsUrl(info[possibleKeys[i]]);
+          keyFound = true;
+        }
+      }
     }
   });
   _contextMenus.callMethod('create', [props]);
