@@ -27,6 +27,7 @@
     "clipboardWrite",
     "contextMenus",
     "declarativeContent",
+    "storage",
     "webRequest",
     "webRequestBlocking",
     "http://*/*"

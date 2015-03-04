@@ -14,7 +14,7 @@ JsObject _webRequest = context['chrome']['webRequest'];
 
 
 void main() {
-  var settings = new HostServerSettings(_runtime);
+  var settings = new HostServerSettings(_runtime, context['chrome']['storage']);
   settings.changes.listen((_) => _setupPageStateMatcher(settings));
 
   addListenerToChromeEvent(_runtime, 'onInstalled', (_) {
@@ -121,25 +121,38 @@ void _pageActionOnClickedAction(JsObject tab) {
 
 
 class HostServerSettings {
+  Stream get changes => _changesController.stream;
+  JsObject chromeStorage;
   String get host => _host;
   int get port => _port;
+
+  final _changesController = new StreamController();
   String _host = 'localhost';
   int _port = 8080;
 
-  Stream get changes => _changesController.stream;
-
-  final _changesController = new StreamController();
-
-  HostServerSettings(JsObject chromeRuntime) {
+  HostServerSettings(JsObject chromeRuntime, this.chromeStorage) {
     addListenerToChromeEvent(chromeRuntime, 'onMessage', _handleRuntimeMsg);
+
+    chromeStorage['local'].callMethod('get', [new JsObject.jsify(['host', 'port']),
+                                             (JsObject settings) {
+      if (settings['host'] != null) {
+        _host = settings['host'] as String;
+      }
+
+      if (settings['port'] != null) {
+        _port = settings['port'] as int;
+      }
+    }]);
   }
 
   void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
     if (msg['host'] != null) {
       _host = msg['host'] as String;
+      chromeStorage['local'].callMethod('set', [new JsObject.jsify({'host': _host})]);
       _changesController.add(_host);
     } else if (msg['port'] != null) {
       _port = msg['port'] as int;
+      chromeStorage['local'].callMethod('set', [new JsObject.jsify({'port': _port})]);
       _changesController.add(_port);
     } else if (msg['options'] != null && msg['options'] == 'hostServer') {
       response.apply([new JsObject.jsify({
@@ -147,8 +160,6 @@ class HostServerSettings {
         'port': _port
       })]);
     }
-
-    print('$_host:$_port');
   }
 }
 
