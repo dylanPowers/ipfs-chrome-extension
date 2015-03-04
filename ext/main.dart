@@ -5,21 +5,21 @@ import 'dart:js';
 
 // There is a Dart library for Chrome Apps and Extensions but it's pretty
 // broken so we're best off just accessing the JS API directly.
-JsObject contextMenusNamespace = context['chrome']['contextMenus'];
-JsObject declarativeContentNamespace = context['chrome']['declarativeContent'];
-JsObject pageActionNamespace = context['chrome']['pageAction'];
-JsObject runtimeNamespace = context['chrome']['runtime'];
-JsObject webRequestNamespace = context['chrome']['webRequest'];
+JsObject _contextMenus = context['chrome']['contextMenus'];
+JsObject _declarativeContent = context['chrome']['declarativeContent'];
+JsObject _pageAction = context['chrome']['pageAction'];
+JsObject _runtime = context['chrome']['runtime'];
+JsObject _webRequest = context['chrome']['webRequest'];
 
 
 void main() {
-  addListenerToChromeEvent(runtimeNamespace, 'onInstalled', onInstalledAction);
+  addListenerToChromeEvent(_runtime, 'onInstalled', onInstalledAction);
 
   // A page action is the little icon that appears in the URL bar.
-  addListenerToChromeEvent(pageActionNamespace, 'onClicked', pageActionOnClickedAction);
+  addListenerToChromeEvent(_pageAction, 'onClicked', pageActionOnClickedAction);
 
   addContextMenu();
-  setupWebRequestRedirect();
+  new WebRequestRedirect(_webRequest, _runtime);
 }
 
 
@@ -37,7 +37,7 @@ void addContextMenu() {
       addToClipboardAsIpfsUrl(info['linkUrl']);
     }
   });
-  contextMenusNamespace.callMethod('create', [props]);
+  _contextMenus.callMethod('create', [props]);
 }
 
 
@@ -94,15 +94,15 @@ void onInstalledAction(JsObject details) {
   }});
   var rules = new JsObject.jsify([{
     'conditions': [
-      new JsObject(declarativeContentNamespace['PageStateMatcher'], [pageStateMatcherArg])
+      new JsObject(_declarativeContent['PageStateMatcher'], [pageStateMatcherArg])
     ],
     'actions': [
-      new JsObject(declarativeContentNamespace['ShowPageAction']),
+      new JsObject(_declarativeContent['ShowPageAction']),
     ]
   }]);
-  dartifyChromeEvent(declarativeContentNamespace,
+  dartifyChromeEvent(_declarativeContent,
                      'onPageChanged').callMethod('removeRules', [null, () {
-      dartifyChromeEvent(declarativeContentNamespace,
+      dartifyChromeEvent(_declarativeContent,
                          'onPageChanged').callMethod('addRules', [rules]);
   }]);
 }
@@ -112,23 +112,43 @@ void pageActionOnClickedAction(JsObject tab) {
   addToClipboardAsIpfsUrl(tab['url']);
 }
 
+class WebRequestRedirect {
+  String _host = 'localhost';
+  int _port = 8080;
 
-void setupWebRequestRedirect() {
-  dartifyChromeEvent(webRequestNamespace, 'onBeforeRequest').callMethod('addListener', [
-    webRequestOnBeforeRequestAction,
-    new JsObject.jsify({
-      'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
-    }),
-    new JsObject.jsify(['blocking'])
-  ]);
-}
+  WebRequestRedirect(JsObject chromeWebRequest, JsObject chromeRuntime) {
+    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest').callMethod('addListener', [
+      _onBeforeRequestAction,
+      new JsObject.jsify({
+        'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
+      }),
+      new JsObject.jsify(['blocking'])
+    ]);
 
+    addListenerToChromeEvent(chromeRuntime, 'onMessage', _handleRuntimeMsg);
+  }
 
-JsObject webRequestOnBeforeRequestAction(JsObject data) {
-  var ipfsUrl = data['url'];
-  var localhostUrl = Uri.parse(ipfsUrl).replace(host: 'localhost', port: 8080);
-  var response = {
-    'redirectUrl': localhostUrl.toString()
-  };
-  return new JsObject.jsify(response);
+  void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
+    if (msg['host'] != null) {
+      _host = msg['host'] as String;
+    } else if (msg['port'] != null) {
+      _port = msg['port'] as int;
+    } else if (msg['options'] != null && msg['options'] == 'hostServer') {
+      response.apply([new JsObject.jsify({
+        'host': _host,
+        'port': _port
+      })]);
+    }
+
+    print('$_host:$_port');
+  }
+
+  JsObject _onBeforeRequestAction(JsObject data) {
+    var ipfsUrl = data['url'];
+    var localhostUrl = Uri.parse(ipfsUrl).replace(host: _host, port: _port);
+    var response = {
+      'redirectUrl': localhostUrl.toString()
+    };
+    return new JsObject.jsify(response);
+  }
 }

@@ -2,11 +2,29 @@ library options;
 
 import 'dart:async';
 import 'dart:html';
+import 'dart:js';
+
+JsObject _runtime = context['chrome']['runtime'];
 
 void main() {
-  var input = new ServerInput(document, "localhost", 8);
-  input.hostChanges.listen((host) => print(host));
-  input.portChanges.listen((port) => print(port));
+  _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
+      'options': 'hostServer'
+    }), null, _onOptionsResponse
+  ]);
+}
+
+void _onOptionsResponse(JsObject response) {
+  var input = new ServerInput(document, response['host'] as String, response['port'] as int);
+  input.hostChanges.listen((host) {
+    _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
+      'host': host
+    })]);
+  });
+  input.portChanges.listen((port) {
+    _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
+      'port': port
+    })]);
+  });
 }
 
 class ServerInput {
