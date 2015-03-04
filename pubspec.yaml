@@ -1,8 +1,10 @@
-name: IPFS Extension
-version: 0.0.1
+name: ipfs_gateway_redirect
+version: 0.1.2
 dependencies:
   chrome: ">=0.6.5 <0.7.0"
 transformers:
 - chrome
+
+# Must come last
 - $dart2js:
     csp: true
