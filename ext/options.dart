@@ -53,6 +53,8 @@ class ServerInput {
   void _setupListeners() {
     _hostOnInputHandler = _hostEl.onInput.listen(_handleHostInput);
     _portOnInputHandler = _portEl.onInput.listen(_handlePortInput);
+    _handleHostInput('');
+    _handlePortInput('');
   }
 
   void _handleHostInput(_) {
