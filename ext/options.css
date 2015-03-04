@@ -11,22 +11,24 @@ input[type="text"] {
   padding: 4px 0;
 }
 
+.option-input:focus,
+input[type="text"]:focus {
+  border-color: #4D90FE;
+  transition: border-color 200ms;
+}
+
+.input-error,
+input[type="text"].input-error,
+input[type="text"]:focus.input-error {
+  border-color: #970010;
+}
+
 #host-input {
   width: 80px;
 }
 
-#host-input:focus {
-  border-color: #4D90FE;
-  transition: border-color 200ms;
-}
-
 #port-input {
   width: 42px;
-}
-
-#port-input:focus {
-  border-color: #4D90FE;
-  transition: border-color 200ms;
 }
 
 #server-input {

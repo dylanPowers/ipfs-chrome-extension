@@ -12,6 +12,7 @@ void main() {
 class ServerInput {
   static const _HOST_INPUT_ID = 'host-input';
   static const _PORT_INPUT_ID = 'port-input';
+  static const _INPUT_ERROR_CLASSNAME = 'input-error';
 
   Stream<String> get hostChanges => _hostChangesController.stream;
   Stream<int> get portChanges => _portChangesController.stream;
@@ -32,20 +33,34 @@ class ServerInput {
   }
 
   void _setupListeners() {
-    _hostOnInputHandler = _hostEl.onInput.listen((e) {
-      if (_hostEl.value.length > 9) {
-        _hostEl.style.width = '${_hostEl.value.length * 8.5}px';
-      } else {
-        _hostEl.style.width = '';
-      }
-      _hostChangesController.add(_hostEl.value);
-    });
+    _hostOnInputHandler = _hostEl.onInput.listen(_handleHostInput);
+    _portOnInputHandler = _portEl.onInput.listen(_handlePortInput);
+  }
 
-    _portOnInputHandler = _portEl.onInput.listen((e) {
-      var portNum = int.parse(_portEl.value, onError: (_) => 0);
-      if (portNum > 0) {
-        _portChangesController.add(portNum);
-      }
-    });
+  void _handleHostInput(_) {
+    if (_hostEl.value.length > 9) {
+      _hostEl.style.width = '${_hostEl.value.length * 8.5}px';
+    } else {
+      _hostEl.style.width = '';
+    }
+
+    var host = _hostEl.value.trim();
+    // Check for common errors. No reason to get crazy.
+    if (host.length > 0 && !host.contains(' ') && !host.contains(':')) {
+      _hostEl.classes.remove(_INPUT_ERROR_CLASSNAME);
+      _hostChangesController.add(host);
+    } else {
+      _hostEl.classes.add(_INPUT_ERROR_CLASSNAME);
+    }
+  }
+
+  void _handlePortInput(_) {
+    var portNum = int.parse(_portEl.value, onError: (_) => 0);
+    if (portNum > 0 && portNum <= 65535) {
+      _portEl.classes.remove(_INPUT_ERROR_CLASSNAME);
+      _portChangesController.add(portNum);
+    } else {
+      _portEl.classes.add(_INPUT_ERROR_CLASSNAME);
+    }
   }
 }
