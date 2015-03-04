@@ -23,11 +23,11 @@ void main() {
   // A page action is the little icon that appears in the URL bar.
   addListenerToChromeEvent(_pageAction, 'onClicked', _pageActionOnClickedAction);
 
-  _addContextMenu(settings);
+  _setupContextMenu(settings);
   new WebRequestRedirect(_webRequest, settings);
 
   settings.changes.listen((_) {
-    _addContextMenu(settings);
+    _setupContextMenu(settings);
     _setupPageStateMatcher(settings);
   });
 }
@@ -77,7 +77,7 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
 }
 
 
-void _addContextMenu(HostServerSettings settings) {
+void _setupContextMenu(HostServerSettings settings) {
   _contextMenus.callMethod('removeAll');
 
   var server = 'http://${settings.host}:${settings.port}';
