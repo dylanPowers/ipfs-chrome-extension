@@ -15,7 +15,6 @@ JsObject _webRequest = context['chrome']['webRequest'];
 
 void main() {
   var settings = new HostServerSettings(_runtime, context['chrome']['storage']);
-  settings.changes.listen((_) => _setupPageStateMatcher(settings));
 
   addListenerToChromeEvent(_runtime, 'onInstalled', (_) {
     _setupPageStateMatcher(settings);
@@ -24,8 +23,13 @@ void main() {
   // A page action is the little icon that appears in the URL bar.
   addListenerToChromeEvent(_pageAction, 'onClicked', _pageActionOnClickedAction);
 
-  _addContextMenu();
+  _addContextMenu(settings);
   new WebRequestRedirect(_webRequest, settings);
+
+  settings.changes.listen((_) {
+    _addContextMenu(settings);
+    _setupPageStateMatcher(settings);
+  });
 }
 
 
@@ -73,8 +77,11 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
 }
 
 
-void _addContextMenu() {
-  var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
+void _addContextMenu(HostServerSettings settings) {
+  _contextMenus.callMethod('removeAll');
+
+  var server = 'http://${settings.host}:${settings.port}';
+  var urlMatch = ['$server/ipfs/*', '$server/ipns/*'];
   var props = new JsObject.jsify({
     'contexts': ['link'],
 
@@ -135,12 +142,19 @@ class HostServerSettings {
 
     chromeStorage['local'].callMethod('get', [new JsObject.jsify(['host', 'port']),
                                              (JsObject settings) {
+      bool valChanged = false;
       if (settings['host'] != null) {
         _host = settings['host'] as String;
+        valChanged = true;
       }
 
       if (settings['port'] != null) {
         _port = settings['port'] as int;
+        valChanged = true;
+      }
+
+      if (valChanged) {
+        _changesController.add('$_host:$_port');
       }
     }]);
   }
