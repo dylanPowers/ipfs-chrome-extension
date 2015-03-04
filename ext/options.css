@@ -1,3 +1,42 @@
+.option-input,
+input[type="text"] {
+  border: 2px solid #fff;
+  border-radius: 0;
+  box-sizing: content-box;
+  color: #444444;
+  font-family: monospace;
+  font-size: 14px;
+  min-height: initial;
+  outline: none;
+  padding: 4px 0;
+}
+
+#host-input {
+  width: 80px;
+}
+
+#host-input:focus {
+  border-color: #4D90FE;
+  transition: border-color 200ms;
+}
+
 #port-input {
   width: 42px;
+}
+
+#port-input:focus {
+  border-color: #4D90FE;
+  transition: border-color 200ms;
+}
+
+#server-input {
+  border: 2px solid #BFBFBF;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+#server-input-label {
+  float: left;
+  font-size: 14px;
+  padding: 8px 4px 8px 0;
 }
