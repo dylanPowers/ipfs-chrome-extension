@@ -104,7 +104,9 @@ void _setupContextMenu(HostServerSettings settings) {
   });
 
   // A hack to get around the most weirdest and obscure bug ever seen when
-  // compiling to JS. Apparently an Array isn't always an Array in JS?
+  // compiling to JS. Apparently an Array isn't always an Array in JS? Or
+  // maybe the Chrome API parses the object in such a way that the property
+  // can't be accessed?
   // https://twitter.com/dylankpowers/status/573037501171933187
   props['targetUrlPatterns'] = new JsArray.from(props['targetUrlPatterns']);
   _contextMenus.callMethod('create', [props]);
