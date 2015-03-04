@@ -1,5 +1,6 @@
 library ipfs_interceptor;
 
+import 'dart:async';
 import 'dart:html';
 import 'dart:js';
 
@@ -13,31 +14,18 @@ JsObject _webRequest = context['chrome']['webRequest'];
 
 
 void main() {
-  addListenerToChromeEvent(_runtime, 'onInstalled', onInstalledAction);
+  var settings = new HostServerSettings(_runtime);
+  settings.changes.listen((_) => _setupPageStateMatcher(settings));
+
+  addListenerToChromeEvent(_runtime, 'onInstalled', (_) {
+    _setupPageStateMatcher(settings);
+  });
 
   // A page action is the little icon that appears in the URL bar.
-  addListenerToChromeEvent(_pageAction, 'onClicked', pageActionOnClickedAction);
+  addListenerToChromeEvent(_pageAction, 'onClicked', _pageActionOnClickedAction);
 
-  addContextMenu();
-  new WebRequestRedirect(_webRequest, _runtime);
-}
-
-
-void addContextMenu() {
-  var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
-  var props = new JsObject.jsify({
-    'contexts': ['link'],
-
-    // This should match the default_title under page_action in the manifest
-    'title': 'Copy as IPFS link',
-
-    'documentUrlPatterns': urlMatch,
-    'targetUrlPatterns': urlMatch,
-    'onclick': (JsObject info, JsObject tab) {
-      addToClipboardAsIpfsUrl(info['linkUrl']);
-    }
-  });
-  _contextMenus.callMethod('create', [props]);
+  _addContextMenu();
+  new WebRequestRedirect(_webRequest, settings);
 }
 
 
@@ -85,11 +73,30 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
 }
 
 
-void onInstalledAction(JsObject details) {
+void _addContextMenu() {
+  var urlMatch = ["http://localhost:*/ipfs/*", "http://localhost:*/ipns/*"];
+  var props = new JsObject.jsify({
+    'contexts': ['link'],
+
+    // This should match the default_title under page_action in the manifest
+    'title': 'Copy as IPFS link',
+
+    'documentUrlPatterns': urlMatch,
+    'targetUrlPatterns': urlMatch,
+    'onclick': (JsObject info, JsObject tab) {
+      addToClipboardAsIpfsUrl(info['linkUrl']);
+    }
+  });
+  _contextMenus.callMethod('create', [props]);
+}
+
+
+void _setupPageStateMatcher(HostServerSettings settings) {
   var pageStateMatcherArg = new JsObject.jsify({
     'pageUrl': {
       // Chrome has globbing available everywhere but here
-      'originAndPathMatches': '^http://localhost(:[[:digit:]]+)?\\/(ipfs|ipns)\\/.+',
+      // Also note that for ports 80 and 443 the port numbers won't be present
+      'originAndPathMatches': '^http://${settings.host}(:${settings.port})?\\/(ipfs|ipns)\\/.+',
       'schemes': ['http']
   }});
   var rules = new JsObject.jsify([{
@@ -108,31 +115,32 @@ void onInstalledAction(JsObject details) {
 }
 
 
-void pageActionOnClickedAction(JsObject tab) {
+void _pageActionOnClickedAction(JsObject tab) {
   addToClipboardAsIpfsUrl(tab['url']);
 }
 
-class WebRequestRedirect {
+
+class HostServerSettings {
+  String get host => _host;
+  int get port => _port;
   String _host = 'localhost';
   int _port = 8080;
 
-  WebRequestRedirect(JsObject chromeWebRequest, JsObject chromeRuntime) {
-    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest').callMethod('addListener', [
-      _onBeforeRequestAction,
-      new JsObject.jsify({
-        'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
-      }),
-      new JsObject.jsify(['blocking'])
-    ]);
+  Stream get changes => _changesController.stream;
 
+  final _changesController = new StreamController();
+
+  HostServerSettings(JsObject chromeRuntime) {
     addListenerToChromeEvent(chromeRuntime, 'onMessage', _handleRuntimeMsg);
   }
 
   void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
     if (msg['host'] != null) {
       _host = msg['host'] as String;
+      _changesController.add(_host);
     } else if (msg['port'] != null) {
       _port = msg['port'] as int;
+      _changesController.add(_port);
     } else if (msg['options'] != null && msg['options'] == 'hostServer') {
       response.apply([new JsObject.jsify({
         'host': _host,
@@ -142,10 +150,26 @@ class WebRequestRedirect {
 
     print('$_host:$_port');
   }
+}
+
+
+class WebRequestRedirect {
+  final HostServerSettings settings;
+
+  WebRequestRedirect(JsObject chromeWebRequest, this.settings) {
+    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest').callMethod('addListener', [
+      _onBeforeRequestAction,
+      new JsObject.jsify({
+        'urls': ['http://gateway.ipfs.io/ipfs/*', 'http://gateway.ipfs.io/ipns/*']
+      }),
+      new JsObject.jsify(['blocking'])
+    ]);
+  }
+
 
   JsObject _onBeforeRequestAction(JsObject data) {
     var ipfsUrl = data['url'];
-    var localhostUrl = Uri.parse(ipfsUrl).replace(host: _host, port: _port);
+    var localhostUrl = Uri.parse(ipfsUrl).replace(host: settings.host, port: settings.port);
     var response = {
       'redirectUrl': localhostUrl.toString()
     };
