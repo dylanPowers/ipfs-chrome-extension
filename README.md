@@ -25,7 +25,8 @@ Building
 You can probably see that this is implemented in Dart, and running it requires
 the [Dart SDK](https://www.dartlang.org/tools/download.html). 
 If you also grab Dartium (Chromium + Dart VM), running it is as simple
-as loading the ```ext``` directory directly into Dartium as per the instructions
+as loading the ```ext``` directory directly into Dartium by opening a tab to 
+chrome://extensions and following the instructions
 at https://developer.chrome.com/extensions/getstarted#unpacked. 
 To run the extension in a standard Chrome browser, you'll have to first compile
 it to Javascript. To make a Javascript build simply run:
