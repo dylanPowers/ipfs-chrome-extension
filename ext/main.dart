@@ -24,7 +24,7 @@ void main() {
   addListenerToChromeEvent(_pageAction, 'onClicked', _pageActionOnClickedAction);
 
   _setupContextMenu(settings);
-  new WebRequestRedirect(_webRequest, _runtime, settings);
+  new WebRequestRedirect(_webRequest, settings);
 
   settings.changes.listen((_) {
     _setupContextMenu(settings);
@@ -84,8 +84,6 @@ void _setupContextMenu(HostServerSettings settings) {
   var urlMatch = [
     '$server/ipfs/*',
     '$server/ipns/*',
-    'file:///ipfs/*',
-    'file:///ipns/*'
   ];
 
   var props = new JsObject.jsify({
@@ -122,7 +120,7 @@ void _setupPageStateMatcher(HostServerSettings settings) {
     'pageUrl': {
       // Chrome has globbing available everywhere but here
       // Also note that for ports 80 and 443 the port numbers won't be present
-      'originAndPathMatches': '^(http://${settings.host}(:${settings.port})?|file://)\\/(ipfs|ipns)\\/.+',
+      'originAndPathMatches': r'^http://' + settings.host + r'(:' + settings.port.toString() + r')?/(ipfs|ipns)/.+',
       'schemes': ['http']
   }});
   var rules = new JsObject.jsify([{
@@ -200,44 +198,46 @@ class HostServerSettings {
 class WebRequestRedirect {
   final HostServerSettings settings;
 
-  WebRequestRedirect(JsObject chromeWebRequest, JsObject chromeRuntime, this.settings) {
-    chromeRuntime.callMethod('getPlatformInfo', [(JsObject info) {
-      _setupRequestListener(chromeWebRequest, info['os']);
-    }]);
+  WebRequestRedirect(JsObject chromeWebRequest, this.settings) {
+    _setupRequestListener(chromeWebRequest);
   }
 
-  void _setupRequestListener(JsObject chromeWebRequest, String os) {
+  JsObject _onBeforeRequestAction(JsObject data) {
+    var ipfsUrl = Uri.parse(data['url']);
+    if (ipfsUrl.scheme == 'file') {
+      // File URI's sometimes have the URI fragment character '#'
+      // encoded by Chrome because it wants to be "smart" when in reality it's
+      // being idiotic. It's dependent on how the user inputs the URI
+      // into the browser URL bar. Unfortunately it's impossible to
+      // differentiate between the cases; i.e. typing:
+      //       /ipfs/<hash>/app#stuff vs file:///ipfs/<hash>/app#stuff
+      // Generally people don't have hashes in their filenames, so I'm
+      // exchanging one completely idiotic idea for something that's slightly
+      // less idiotic.
+      ipfsUrl = Uri.parse(Uri.decodeComponent(data['url']));
+    }
+
+    // Chrome doesn't like file based apps much. Always use the HTTP API.
+    var localUrl = ipfsUrl.replace(scheme: 'http', host: settings.host,
+                                   port: settings.port);
+
+    return new JsObject.jsify({
+      'redirectUrl': localUrl.toString()
+    });
+  }
+  
+  void _setupRequestListener(JsObject chromeWebRequest) {
     var urls =  [
       'http://gateway.ipfs.io/ipfs/*',
-      'http://gateway.ipfs.io/ipns/*'
+      'http://gateway.ipfs.io/ipns/*',
+      'file:///ipfs/*',
+      'file:///ipns/*'
     ];
-
-    // Lame OS's that don't like FUSE
-    if (os == 'cros' ||
-        os == 'win' /* Should be 'fail' which is short for 'faildows' lol */) {
-      urls.addAll(['file:///ipfs/*', 'file:///ipns/*']);
-    }
 
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest').callMethod('addListener', [
       _onBeforeRequestAction,
       new JsObject.jsify({ 'urls': urls }),
       new JsObject.jsify(['blocking'])
     ]);
-  }
-
-  JsObject _onBeforeRequestAction(JsObject data) {
-    var ipfsUrl = Uri.parse(data['url']);
-    if (ipfsUrl.scheme == 'file') {
-      // File URI's are sometimes encoded by Chrome because it wants to be smart.
-      // It's dependent on how the user inputs the URI into the browser URL bar.
-      ipfsUrl = Uri.parse(Uri.decodeComponent(data['url']));
-    }
-
-    var localhostUrl = ipfsUrl.replace(scheme: 'http', host: settings.host,
-                                       port: settings.port);
-    var response = {
-      'redirectUrl': localhostUrl.toString()
-    };
-    return new JsObject.jsify(response);
   }
 }
