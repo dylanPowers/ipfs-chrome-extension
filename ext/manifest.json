@@ -30,6 +30,8 @@
     "storage",
     "webRequest",
     "webRequestBlocking",
+    "file:///ipfs/*",
+    "file:///ipns/*",
     "http://*/*"
   ]
 }
