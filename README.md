@@ -17,9 +17,6 @@ set to gateway.ipfs.io rather than localhost:8080. The url bar (aka Omnibox) ico
 requires a simple click to copy the IFPS url, and links require a right click
 and where you would normally select "Copy link address" instead select "Copy as IPFS link".
 
-#### Things in the works
-* [Fallback to gateway.ipfs.io when the local gateway is down](https://github.com/dylanPowers/ipfs-chrome-extension/issues/2)
-
 Building
 --------
 You can probably see that this is implemented in Dart, and running it requires
