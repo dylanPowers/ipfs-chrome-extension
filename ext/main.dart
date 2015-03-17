@@ -51,7 +51,7 @@ void addToClipboard(String text) {
 }
 
 
-String addToClipboardAsIpfsUrl(String localUrl) {
+void addToClipboardAsIpfsUrl(String localUrl) {
   var ipfsUrl = Uri.parse(localUrl).replace(host: 'gateway.ipfs.io', port: 80);
   addToClipboard(ipfsUrl.toString());
 }
@@ -76,16 +76,15 @@ JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
   return dartifiedEvent;
 }
 
+List<String> makeIpfsGlobs(String server) {
+  return ['$server/ipfs/*', '$server/ipns/*'];
+}
+
 
 void _setupContextMenu(HostServerSettings settings) {
   _contextMenus.callMethod('removeAll');
 
-  var server = 'http://${settings.host}:${settings.port}';
-  var urlMatch = [
-    '$server/ipfs/*',
-    '$server/ipns/*',
-  ];
-
+  var urlMatch = makeIpfsGlobs(settings.server);
   var props = new JsObject.jsify({
     'contexts': ['frame', 'link', 'image', 'video', 'audio'],
     'title': _runtime.callMethod('getManifest')['page_action']['default_title'],
@@ -149,8 +148,9 @@ class HostServerSettings {
   JsObject chromeStorage;
   String get host => _host;
   int get port => _port;
+  String get server => 'http://$host:$port';
 
-  final _changesController = new StreamController();
+  final _changesController = new StreamController.broadcast();
   String _host = 'localhost';
   int _port = 8080;
 
@@ -171,7 +171,7 @@ class HostServerSettings {
       }
 
       if (valChanged) {
-        _changesController.add('$_host:$_port');
+        _changesController.add(server);
       }
     }]);
   }
@@ -196,48 +196,104 @@ class HostServerSettings {
 
 
 class WebRequestRedirect {
+  static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
+
+  final JsObject chromeWebRequest;
   final HostServerSettings settings;
 
-  WebRequestRedirect(JsObject chromeWebRequest, this.settings) {
-    _setupRequestListener(chromeWebRequest);
+  bool _errorMode = false;
+  var _lastErrorTime = new DateTime(0);
+  List<String> get _requestUrls {
+    var urls = makeIpfsGlobs('file://');
+    if (_errorMode) {
+      urls.addAll(makeIpfsGlobs(settings.server));
+    } else {
+      urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
+    }
+
+    return urls;
+  }
+
+  WebRequestRedirect(this.chromeWebRequest, this.settings) {
+    _setErrorListener();
+    _setRequestListener();
+
+    settings.changes.listen((_) {
+      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+          .callMethod('removeListener', [_onErrorAction]);
+      _setErrorListener();
+      _errorMode = false;
+    });
+  }
+
+  void _onErrorAction(JsObject details) {
+    // Chrome will give an error message, but there isn't a defined way of
+    // identifying the problem. Nor is there a way to tell Chrome how to
+    // resolve the problem. Luckily Chrome will automatically reattempt the
+    // request. We just have to be ready for it.
+    _errorMode = true;
+    _lastErrorTime = new DateTime.now();
+    _setRequestListener();
   }
 
   JsObject _onBeforeRequestAction(JsObject data) {
+    if (_errorMode &&
+        new DateTime.now().difference(_lastErrorTime) > _ERROR_COOL_DOWN_PERIOD) {
+      _errorMode = false;
+      _setRequestListener();
+    }
+
     var ipfsUrl = Uri.parse(data['url']);
     if (ipfsUrl.scheme == 'file') {
-      // File URI's sometimes have the URI fragment character '#'
-      // encoded by Chrome because it wants to be "smart" when in reality it's
-      // being idiotic. It's dependent on how the user inputs the URI
-      // into the browser URL bar. Unfortunately it's impossible to
-      // differentiate between the cases; i.e. typing:
-      //       /ipfs/<hash>/app#stuff vs file:///ipfs/<hash>/app#stuff
-      // Generally people don't have hashes in their filenames, so I'm
-      // exchanging one completely idiotic idea for something that's slightly
-      // less idiotic.
-      ipfsUrl = Uri.parse(Uri.decodeComponent(data['url']));
+      ipfsUrl = _parseFileUrl(data['url']);
     }
 
     // Chrome doesn't like file based apps much. Always use the HTTP API.
-    var localUrl = ipfsUrl.replace(scheme: 'http', host: settings.host,
-                                   port: settings.port);
+    Uri localUrl;
+    if (!_errorMode) {
+      localUrl = ipfsUrl.replace(scheme: 'http',
+                                 host: settings.host,
+                                 port: settings.port);
+    } else {
+      localUrl = ipfsUrl.replace(scheme: 'http', host: 'gateway.ipfs.io', port: 80);
+    }
 
     return new JsObject.jsify({
       'redirectUrl': localUrl.toString()
     });
   }
-  
-  void _setupRequestListener(JsObject chromeWebRequest) {
-    var urls =  [
-      'http://gateway.ipfs.io/ipfs/*',
-      'http://gateway.ipfs.io/ipns/*',
-      'file:///ipfs/*',
-      'file:///ipns/*'
-    ];
 
-    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest').callMethod('addListener', [
-      _onBeforeRequestAction,
-      new JsObject.jsify({ 'urls': urls }),
-      new JsObject.jsify(['blocking'])
+  /**
+   * File URI's sometimes have the URI fragment character '#'
+   * encoded by Chrome because it wants to be "smart" when in reality it's
+   * being idiotic. It's dependent on how the user inputs the URI
+   * into the browser URL bar. Unfortunately it's impossible to
+   * differentiate between the cases; i.e. typing:
+   *         /ipfs/<hash>/app#stuff vs file:///ipfs/<hash>/app#stuff
+   * Generally people don't have hashes in their filenames, so I'm
+   * exchanging one completely idiotic idea for something that's slightly
+   * less idiotic.
+   */
+  static Uri _parseFileUrl(String fileUrl) {
+    return Uri.parse(Uri.decodeComponent(fileUrl));
+  }
+
+  void _setErrorListener() {
+    dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+        .callMethod('addListener', [
+          _onErrorAction,
+          new JsObject.jsify({'urls': makeIpfsGlobs(settings.server)})
+    ]);
+  }
+  
+  void _setRequestListener() {
+    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
+        .callMethod('removeListener', [_onBeforeRequestAction]);
+    dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
+        .callMethod('addListener', [
+          _onBeforeRequestAction,
+          new JsObject.jsify({'urls': _requestUrls}),
+          new JsObject.jsify(['blocking'])
     ]);
   }
 }
