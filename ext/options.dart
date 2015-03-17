@@ -59,7 +59,7 @@ class ServerInput {
 
   void _handleHostInput(_) {
     if (_hostEl.value.length > 9) {
-      _hostEl.style.width = '${_hostEl.value.length * 8.5 + 1}px';
+      _hostEl.style.width = '${(_hostEl.value.length + 1) * 8.5}px';
     } else {
       _hostEl.style.width = '';
     }
