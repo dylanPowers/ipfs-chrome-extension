@@ -3,11 +3,14 @@
 <head>
   <link rel="stylesheet" href="options.css" /></head>
 <body>
-  <label id="server-input-label" for="server-input">Gateway:</label>
-  <div id="server-input">
-    <input id="host-input" class="option-input" type="text" placeholder="hostname"/>
-    <label class="option-label" for="port-input">:</label>
-    <input id="port-input" class="option-input" type="text" placeholder="port" maxlength="5"/>
+  <div id="server-input-wrapper">
+    <label id="server-input-label" for="server-input">Gateway:</label>
+    <div id="server-input">
+      <input id="host-input" class="option-input" type="text" placeholder="hostname"/>
+      <label class="option-label" for="port-input">:</label>
+      <input id="port-input" class="option-input" type="text" placeholder="port" maxlength="5"/>
+    </div>
+    <button id="perms-button" class="center" disabled>Grant Permissions</button>
   </div>
 
   <script type="application/dart" src="options.dart"></script>

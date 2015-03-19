@@ -1,20 +1,23 @@
 library ipfs_interceptor;
 
-import 'dart:async';
-import 'dart:html';
 import 'dart:js';
+
+import 'package:ipfs_gateway_redirect/chrome_help.dart';
+import 'settings.dart';
 
 // There is a Dart library for Chrome Apps and Extensions but it's pretty
 // broken so we're best off just accessing the JS API directly.
 JsObject _contextMenus = context['chrome']['contextMenus'];
 JsObject _declarativeContent = context['chrome']['declarativeContent'];
 JsObject _pageAction = context['chrome']['pageAction'];
+JsObject _permissions = context['chrome']['permissions'];
 JsObject _runtime = context['chrome']['runtime'];
+JsObject _storage = context['chrome']['storage'];
 JsObject _webRequest = context['chrome']['webRequest'];
 
 
 void main() {
-  var settings = new HostServerSettings(_runtime, context['chrome']['storage']);
+  var settings = new SettingsCore(_permissions, _runtime, _storage);
 
   addListenerToChromeEvent(_runtime, 'onInstalled', (_) {
     _setupPageStateMatcher(settings);
@@ -26,28 +29,10 @@ void main() {
   _setupContextMenu(settings);
   new WebRequestRedirect(_webRequest, settings);
 
-  settings.changes.listen((_) {
-    _setupContextMenu(settings);
-    _setupPageStateMatcher(settings);
-  });
-}
-
-
-void addListenerToChromeEvent(JsObject namespace, String eventName, Function callback) {
-  var dartifiedEvent = dartifyChromeEvent(namespace, eventName);
-  dartifiedEvent.callMethod('addListener', [callback]);
-}
-
-
-void addToClipboard(String text) {
-  // Yes this is a zany hack.
-  var tempEl = document.createElement('textarea');
-  document.body.append(tempEl);
-  tempEl.value = text;
-  tempEl.focus();
-  tempEl.select();
-  document.execCommand('copy', false, null);
-  tempEl.remove();
+//  settings.changes.listen((_) {
+//    _setupContextMenu(settings);
+//    _setupPageStateMatcher(settings);
+//  });
 }
 
 
@@ -56,32 +41,12 @@ void addToClipboardAsIpfsUrl(String localUrl) {
   addToClipboard(ipfsUrl.toString());
 }
 
-
-/**
- * This function exists purely because of a bug in the dart2js compiler. It
- * must be used to properly access a Chrome Event object. Without it, vague
- * meaningless errors when running as Javascript will crop up.
- * https://code.google.com/p/dart/issues/detail?id=20800
- */
-JsObject dartifyChromeEvent(JsObject namespace, String eventName) {
-  var event = namespace[eventName];
-  JsObject dartifiedEvent;
-  if (event is JsObject) {
-    dartifiedEvent = event;
-  } else {
-    // Dart2JS glitch workaround https://code.google.com/p/dart/issues/detail?id=20800
-    dartifiedEvent = new JsObject.fromBrowserObject(event);
-  }
-
-  return dartifiedEvent;
-}
-
 List<String> makeIpfsGlobs(String server) {
   return ['$server/ipfs/*', '$server/ipns/*'];
 }
 
 
-void _setupContextMenu(HostServerSettings settings) {
+void _setupContextMenu(ChromeSettings settings) {
   _contextMenus.callMethod('removeAll');
 
   var urlMatch = makeIpfsGlobs(settings.server);
@@ -114,7 +79,7 @@ void _setupContextMenu(HostServerSettings settings) {
 }
 
 
-void _setupPageStateMatcher(HostServerSettings settings) {
+void _setupPageStateMatcher(ChromeSettings settings) {
   var pageStateMatcherArg = new JsObject.jsify({
     'pageUrl': {
       // Chrome has globbing available everywhere but here
@@ -143,63 +108,11 @@ void _pageActionOnClickedAction(JsObject tab) {
 }
 
 
-class HostServerSettings {
-  Stream get changes => _changesController.stream;
-  JsObject chromeStorage;
-  String get host => _host;
-  int get port => _port;
-  String get server => 'http://$host:$port';
-
-  final _changesController = new StreamController.broadcast();
-  String _host = 'localhost';
-  int _port = 8080;
-
-  HostServerSettings(JsObject chromeRuntime, this.chromeStorage) {
-    addListenerToChromeEvent(chromeRuntime, 'onMessage', _handleRuntimeMsg);
-
-    chromeStorage['local'].callMethod('get', [new JsObject.jsify(['host', 'port']),
-                                             (JsObject settings) {
-      bool valChanged = false;
-      if (settings['host'] != null) {
-        _host = settings['host'] as String;
-        valChanged = true;
-      }
-
-      if (settings['port'] != null) {
-        _port = settings['port'] as int;
-        valChanged = true;
-      }
-
-      if (valChanged) {
-        _changesController.add(server);
-      }
-    }]);
-  }
-
-  void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
-    if (msg['host'] != null) {
-      _host = msg['host'] as String;
-      chromeStorage['local'].callMethod('set', [new JsObject.jsify({'host': _host})]);
-      _changesController.add(_host);
-    } else if (msg['port'] != null) {
-      _port = msg['port'] as int;
-      chromeStorage['local'].callMethod('set', [new JsObject.jsify({'port': _port})]);
-      _changesController.add(_port);
-    } else if (msg['options'] != null && msg['options'] == 'hostServer') {
-      response.apply([new JsObject.jsify({
-        'host': _host,
-        'port': _port
-      })]);
-    }
-  }
-}
-
-
 class WebRequestRedirect {
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
 
   final JsObject chromeWebRequest;
-  final HostServerSettings settings;
+  final ChromeSettings settings;
 
   bool _errorMode = false;
   var _lastErrorTime = new DateTime(0);
@@ -218,12 +131,12 @@ class WebRequestRedirect {
     _setErrorListener();
     _setRequestListener();
 
-    settings.changes.listen((_) {
-      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
-          .callMethod('removeListener', [_onErrorAction]);
-      _setErrorListener();
-      _errorMode = false;
-    });
+//    settings.changes.listen((_) {
+//      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+//          .callMethod('removeListener', [_onErrorAction]);
+//      _setErrorListener();
+//      _errorMode = false;
+//    });
   }
 
   void _onErrorAction(JsObject details) {

@@ -30,8 +30,10 @@
     "storage",
     "webRequest",
     "webRequestBlocking",
-    "file:///ipfs/*",
-    "file:///ipns/*",
-    "http://*/*"
+    "http://gateway.ipfs.io/",
+    "http://localhost/"
+  ],
+  "optional_permissions": [
+    "<all_urls>"
   ]
 }

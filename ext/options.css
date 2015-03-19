@@ -1,3 +1,11 @@
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  text-align: center;
+}
+
 .option-input,
 input[type="text"] {
   border: 2px solid #fff;
@@ -23,8 +31,18 @@ input[type="text"]:focus.input-error {
   border-color: #970010;
 }
 
+.input-warn,
+input[type="text"].input-warn,
+input[type="text"]:focus.input-warn {
+  border-color: #FFDF00;
+}
+
 #host-input {
   width: 80px;
+}
+
+#perms-button {
+  margin-top: 4px;
 }
 
 #port-input {
@@ -41,4 +59,8 @@ input[type="text"]:focus.input-error {
   float: left;
   font-size: 14px;
   padding: 8px 4px 8px 0;
+}
+
+#server-input-wrapper {
+  display: inline-block;
 }

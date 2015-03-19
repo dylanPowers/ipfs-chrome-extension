@@ -4,49 +4,42 @@ import 'dart:async';
 import 'dart:html';
 import 'dart:js';
 
+import 'settings.dart';
+
+JsObject _permissions = context['chrome']['permissions'];
 JsObject _runtime = context['chrome']['runtime'];
 
-void main() {
-  _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
-      'options': 'hostServer'
-    }), null, _onOptionsResponse
-  ]);
-}
-
-void _onOptionsResponse(JsObject response) {
-  var input = new ServerInput(document, response['host'] as String, response['port'] as int);
-  input.hostChanges.listen((host) {
-    _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
-      'host': host
-    })]);
-  });
-  input.portChanges.listen((port) {
-    _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
-      'port': port
-    })]);
-  });
+void main() async {
+  var settings = new SettingsRemote(_runtime);
+  var input = new ServerInput(document, settings);
 }
 
 class ServerInput {
   static const _HOST_INPUT_ID = 'host-input';
+  static const _PERMS_BUTTON_ID = 'perms-button';
   static const _PORT_INPUT_ID = 'port-input';
   static const _INPUT_ERROR_CLASSNAME = 'input-error';
+  static const _INPUT_WARN_CLASSNAME = 'input-warn';
 
-  Stream<String> get hostChanges => _hostChangesController.stream;
-  Stream<int> get portChanges => _portChangesController.stream;
+  SettingsRemote settings;
 
-  final _hostChangesController = new StreamController<String>();
   final InputElement _hostEl;
   StreamSubscription _hostOnInputHandler;
-  final _portChangesController = new StreamController<int>();
+  final ButtonElement _permsButton;
   final InputElement _portEl;
   StreamSubscription _portOnInputHandler;
 
-  ServerInput(HtmlDocument doc, String initialHostValue, int initialPortValue) :
+  ServerInput(HtmlDocument doc, this.settings) :
     _hostEl = doc.getElementById(_HOST_INPUT_ID),
+    _permsButton = doc.getElementById(_PERMS_BUTTON_ID),
     _portEl = doc.getElementById(_PORT_INPUT_ID) {
-    _hostEl.value = initialHostValue;
-    _portEl.value = initialPortValue.toString();
+    _setupInput();
+  }
+
+  void _setupInput() async {
+    await settings.whenInitializationCompletes;
+    _hostEl.value = settings.host;
+    _portEl.value = settings.port.toString();
     _setupListeners();
   }
 
@@ -68,8 +61,18 @@ class ServerInput {
     // Check for common errors. No reason to get crazy.
     if (host.length > 0 && !host.contains(' ') && !host.contains(':')) {
       _hostEl.classes.remove(_INPUT_ERROR_CLASSNAME);
-      _hostChangesController.add(host);
+      _permissions.callMethod('contains', [new JsObject.jsify({
+        'origins': ['http://$host/']
+      }), (bool hasPermission) {
+        if (hasPermission) {
+          settings.submitHost(host);
+          _hostEl.classes.remove(_INPUT_WARN_CLASSNAME);
+        } else {
+          _hostEl.classes.add(_INPUT_WARN_CLASSNAME);
+        }
+      }]);
     } else {
+      _hostEl.classes.remove(_INPUT_WARN_CLASSNAME);
       _hostEl.classes.add(_INPUT_ERROR_CLASSNAME);
     }
   }
@@ -78,7 +81,7 @@ class ServerInput {
     var portNum = int.parse(_portEl.value, onError: (_) => 0);
     if (portNum > 0 && portNum <= 65535) {
       _portEl.classes.remove(_INPUT_ERROR_CLASSNAME);
-      _portChangesController.add(portNum);
+      settings.submitPort(portNum);
     } else {
       _portEl.classes.add(_INPUT_ERROR_CLASSNAME);
     }
