@@ -14,6 +14,9 @@
  *    'old-value': dynamic
  *    'value': dynamic
  * }
+ *
+ * This entire file of code has no tests when it really should. Some of the
+ * code has gotten a bit complex.
  */
 library settings;
 
@@ -21,25 +24,58 @@ import 'dart:async';
 import 'dart:js';
 
 import 'package:ipfs_gateway_redirect/chrome_help.dart';
+import 'package:observe/observe.dart';
+import 'package:observe/mirrors_used.dart';
 
 abstract class MsgKeys {
   static const SETTING_CHANGE = 'setting-change';
   static const SETTING_SUBMIT = 'setting-submit';
+  static const SETTING_SUBMIT_RESULT = 'setting-submit-result';
   static const SETTINGS_CLIENT_INIT = 'settings-client-init';
 }
 
 typedef void SettingKVLoopFunc(String key, dynamic val);
 typedef void RuntimeCallback(JsObject response);
 
-class Settings {
+class Settings extends ChangeNotifier {
   static const ERROR_UNKNOWN_KEYNAME = 'Unknown keyname';
 
-  bool allowAll = false;
-  bool allowFile = false;
-  bool allowHttp = false;
-  String host = 'localhost';
-  int port = 8080;
-  String get server => 'http://$host:$port';
+  /*
+    Couldn't get the observe transformer to work on these, so I had to manually
+    create the @reflectable behavior :(
+   */
+
+  bool _allowAll = false;
+  @reflectable get allowAll => _allowAll;
+  @reflectable set allowAll(val) {
+    _allowAll = notifyPropertyChange(#allowAll, _allowAll, val);
+  }
+
+  bool _allowFile = false;
+  @reflectable get allowFile => _allowFile;
+  @reflectable set allowFile(val) {
+    _allowFile = notifyPropertyChange(#allowFile, _allowFile, val);
+  }
+
+  bool _allowHttp = false;
+  @reflectable get allowHttp => _allowHttp;
+  @reflectable set allowHttp(val) {
+    _allowHttp = notifyPropertyChange(#allowHttp, _allowHttp, val);
+  }
+
+  String _host = 'localhost';
+  @reflectable get host => _host;
+  @reflectable set host(val) {
+    _host = notifyPropertyChange(#host, _host, val);
+  }
+
+  int _port = 8080;
+  @reflectable get port => _port;
+  @reflectable set port(val) {
+    _port = notifyPropertyChange(#port, _port, val);
+  }
+
+  Stream<List<PropertyChangeRecord>> get changes => super.changes;
 
   Settings();
 
@@ -53,6 +89,14 @@ class Settings {
 
   Settings.fromJSObj(JsObject settings) {
     jsObjForEach(settings, set);
+  }
+
+  bool operator ==(Settings other) {
+    return allowAll == other.allowAll &&
+           allowFile == other.allowFile &&
+           allowHttp == other.allowHttp &&
+           host == other.host &&
+           port == other.port;
   }
 
   dynamic get(String name) {
@@ -91,9 +135,9 @@ class Settings {
         host = value as String;
       } else if (name == 'port') {
         port = value as int;
-      } else {
-        throw ERROR_UNKNOWN_KEYNAME;
       }
+    } else {
+      throw ERROR_UNKNOWN_KEYNAME;
     }
   }
 
@@ -108,6 +152,7 @@ class Settings {
   }
 }
 
+
 abstract class ChromeSettings {
   Settings _settings = new Settings();
   bool get allowAll => _settings.allowAll;
@@ -115,7 +160,20 @@ abstract class ChromeSettings {
   bool get allowHttp => _settings.allowHttp;
   String get host => _settings.host;
   int get port => _settings.port;
-  String get server => _settings.server;
+  String get server => 'http://$host:$port';
+  get changes => _settings.changes;
+  get serverChanges => _settings.changes.transform(new StreamTransformer.fromHandlers(handleData:
+    (List<PropertyChangeRecord> records, EventSink<List<PropertyChangeRecord>> sink) {
+      var transformedRecords = [];
+      records.forEach((record) {
+        if (record.name == #port || record.name == #host) {
+          transformedRecords.add(record);
+        }
+      });
+      if (transformedRecords.length > 0) {
+        sink.add(transformedRecords);
+      }
+  }));
 
   final JsObject chromeRuntime;
   ChromeSettings(this.chromeRuntime) {
@@ -141,6 +199,7 @@ abstract class ChromeSettings {
  *
  * The Core emits the runtime messages
  * 'setting-change'
+ * 'setting-submit-result'
  */
 class SettingsCore extends ChromeSettings {
   JsObject chromePermissions;
@@ -154,33 +213,39 @@ class SettingsCore extends ChromeSettings {
         new JsObject.jsify([
             'allow-all', 'allow-file', 'allow-http', 'host', 'port'
         ]),
-        (JsObject settings) => _submitSettings(settings)
+        (JsObject settings) {
+          _submitSettings(settings).then((result) {
+            if (!result) {
+              // Commit as is on failure
+              chromeStorage['local'].callMethod('set', [new JsObject.jsify(_settings.toMap())]);
+            }
+          });
+        }
     ]);
   }
 
   void _applySetting(String settingName, dynamic value) {
     var oldVal = _settings.get(settingName);
-    if (oldVal != value) {
-      _settings.set(settingName, value);
-      chromeStorage['local'].callMethod('set', [new JsObject.jsify({settingName: value})]);
-      _sendSettingChangeMsg(settingName, value, oldVal);
-    }
+    _settings.set(settingName, value);
+    chromeStorage['local'].callMethod('set', [new JsObject.jsify({settingName: value})]);
+    _sendSettingChangeMsg(settingName, value, oldVal);
   }
 
   void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
     if (msg.hasProperty(MsgKeys.SETTING_SUBMIT)) {
       var newSetting = msg[MsgKeys.SETTING_SUBMIT];
 
-      // I broke Dart here. Await borked things
-      _submitSetting(newSetting['name'], newSetting['value']).then((_) {
-        response.apply([]);
+      // Chrome extensions are retarded. No asynchronous callbacks allowed
+      // causing await to bork things
+      _submitSetting(newSetting['name'], newSetting['value']).then((success) {
+        _sendRuntimeMsg({ MsgKeys.SETTING_SUBMIT_RESULT: success }, (_) {});
       });
     } else if (msg.hasProperty(MsgKeys.SETTINGS_CLIENT_INIT)) {
       response.apply([new JsObject.jsify(_settings.toMap())]);
     }
   }
 
-  bool _requestPermissions(Settings settings) async {
+  List<String> _requestedOrigins(Settings settings) {
     var origins = ['http://${settings.host}/*'];
     if (settings.allowAll) {
       origins = ['<all_urls>'];
@@ -194,6 +259,11 @@ class SettingsCore extends ChromeSettings {
       }
     }
 
+    return origins;
+  }
+
+  bool _requestPermissions(Settings settings) async {
+    var origins = _requestedOrigins(settings);
     var completer = new Completer<bool>();
     chromePermissions.callMethod('request', [
         new JsObject.jsify({ 'origins': origins }),
@@ -212,19 +282,38 @@ class SettingsCore extends ChromeSettings {
     }, (_){});
   }
 
-  void _submitSetting(String settingName, dynamic value) async {
+  bool _submitSetting(String settingName, dynamic value) async {
     var newSettings = new Settings.copy(_settings);
     newSettings.set(settingName, value);
-    if (await _requestPermissions(newSettings)) {
+    if (newSettings != _settings && await _requestPermissions(newSettings)) {
       _applySetting(settingName, value);
+      return true;
     }
+
+    return false;
   }
 
-  void _submitSettings(JsObject settingsJs) async {
-    var newSettings = new Settings.fromJSObj(settingsJs);
-    if (await _requestPermissions(newSettings)) {
-      Settings.jsObjForEach(settingsJs, _applySetting);
+  bool _submitSettings(JsObject settingsJs) async {
+    Settings newSettings;
+    try {
+      newSettings = new Settings.fromJSObj(settingsJs);
+    } catch (e) {
+      return false;
     }
+
+    _requestPermissions(newSettings);
+    var origins = _requestedOrigins(newSettings);
+    var permsVerifyTask = new Completer<bool>();
+    chromePermissions.callMethod('contains', [new JsObject.jsify({
+      'origins': origins
+    }), (bool hasPermission) {
+      if (hasPermission) {
+        Settings.jsObjForEach(settingsJs, _applySetting);
+      }
+      permsVerifyTask.complete(hasPermission);
+    }]);
+
+    return await permsVerifyTask.future;
   }
 }
 
@@ -232,6 +321,7 @@ class SettingsCore extends ChromeSettings {
 /**
  * The Remote listens for the runtime messages
  * 'setting-change'
+ * 'setting-submit-result'
  *
  * The Remote emits the runtime messages
  * 'setting-submit'
@@ -241,24 +331,27 @@ class SettingsRemote extends ChromeSettings {
   final _initCompleter = new Completer();
   Future get whenInitializationCompletes async => _initCompleter.future;
 
-  void submitAllowAll(bool flag) async {
-    await _submitSetting('allow-all', flag);
+  var _submissionCompleter = new Completer()..complete();
+  Future _taskChain;
+
+  bool submitAllowAll(bool flag) async {
+    return _submitSetting('allow-all', flag);
   }
 
-  void submitAllowFile(bool flag) async {
-    await _submitSetting('allow-file', flag);
+  bool submitAllowFile(bool flag) async {
+    return _submitSetting('allow-file', flag);
   }
 
-  void submitAllowHttp(bool flag) async {
-    await _submitSetting('allow-http', flag);
+  bool submitAllowHttp(bool flag) async {
+    return _submitSetting('allow-http', flag);
   }
 
-  void submitHost(String host) async {
-    await _submitSetting('host', host);
+  bool submitHost(String host) async {
+    return _submitSetting('host', host);
   }
 
-  void submitPort(int port) async {
-    await _submitSetting('port', port);
+  bool submitPort(int port) async {
+    return _submitSetting('port', port);
   }
 
   SettingsRemote(JsObject chromeRuntime) : super(chromeRuntime) {
@@ -272,17 +365,33 @@ class SettingsRemote extends ChromeSettings {
     if (msg.hasProperty(MsgKeys.SETTING_CHANGE)) {
       var setting = msg[MsgKeys.SETTING_CHANGE];
       _settings.set(setting['name'], setting['value']);
+    } else if (msg.hasProperty(MsgKeys.SETTING_SUBMIT_RESULT)) {
+      _submissionCompleter.complete(msg[MsgKeys.SETTING_SUBMIT_RESULT]);
     }
   }
 
-  Future _submitSetting(String settingName, dynamic value) {
-    var completer = new Completer();
-    _sendRuntimeMsg({
-      settingName: value
-    }, (_) {
-      completer.complete();
-    });
+  bool _submitSetting(String settingName, dynamic value) async {
+    _taskChain = _submitSettingRecursiveHelper(settingName, value);
+    return await _taskChain;
+  }
 
-    return completer.future;
+  // Mmmm recursion...been awhile my friend. Should probably write some
+  // tests for this.
+  Future<bool> _submitSettingRecursiveHelper(String settingName, dynamic value) {
+    if (_submissionCompleter.isCompleted) {
+      _submissionCompleter = new Completer();
+      _sendRuntimeMsg({
+        MsgKeys.SETTING_SUBMIT: {
+          'name': settingName,
+          'value': value
+        }
+      }, (_) {});
+
+      return _submissionCompleter.future;
+    } else {
+      return _taskChain.then((_) {
+        return _submitSettingRecursiveHelper(settingName, value);
+      });
+    }
   }
 }
