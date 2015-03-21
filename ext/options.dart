@@ -4,7 +4,7 @@ import 'dart:async';
 import 'dart:html';
 import 'dart:js';
 
-import 'settings.dart';
+import 'package:ipfs_gateway_redirect/settings.dart';
 
 JsObject _permissions = context['chrome']['permissions'];
 JsObject _runtime = context['chrome']['runtime'];
@@ -26,6 +26,7 @@ class ServerInput {
   final InputElement _hostEl;
   StreamSubscription _hostOnInputHandler;
   final ButtonElement _permsButton;
+  StreamSubscription _buttonClickHandler;
   final InputElement _portEl;
   StreamSubscription _portOnInputHandler;
 
@@ -45,17 +46,22 @@ class ServerInput {
 
   void _setupListeners() {
     _hostOnInputHandler = _hostEl.onInput.listen(_handleHostInput);
+    _buttonClickHandler = _permsButton.onClick.listen(_handleButtonClick);
     _portOnInputHandler = _portEl.onInput.listen(_handlePortInput);
-    _handleHostInput('');
-    _handlePortInput('');
+    _setupHostInputBox();
+  }
+
+  void _handleButtonClick(_) async {
+    settings.submitHost(_hostEl.value.trim()).then((success) {
+      if (success) {
+        _hostEl.classes.remove(_INPUT_WARN_CLASSNAME);
+        _permsButton.disabled = true;
+      }
+    });
   }
 
   void _handleHostInput(_) {
-    if (_hostEl.value.length > 9) {
-      _hostEl.style.width = '${(_hostEl.value.length + 1) * 8.5}px';
-    } else {
-      _hostEl.style.width = '';
-    }
+    _setupHostInputBox();
 
     var host = _hostEl.value.trim();
     // Check for common errors. No reason to get crazy.
@@ -67,8 +73,10 @@ class ServerInput {
         if (hasPermission) {
           settings.submitHost(host);
           _hostEl.classes.remove(_INPUT_WARN_CLASSNAME);
+          _permsButton.disabled = true;
         } else {
           _hostEl.classes.add(_INPUT_WARN_CLASSNAME);
+          _permsButton.disabled = false;
         }
       }]);
     } else {
@@ -84,6 +92,14 @@ class ServerInput {
       settings.submitPort(portNum);
     } else {
       _portEl.classes.add(_INPUT_ERROR_CLASSNAME);
+    }
+  }
+
+  void _setupHostInputBox() {
+    if (_hostEl.value.length > 9) {
+      _hostEl.style.width = '${(_hostEl.value.length + 1) * 8.5}px';
+    } else {
+      _hostEl.style.width = '';
     }
   }
 }

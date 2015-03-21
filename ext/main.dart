@@ -3,7 +3,8 @@ library ipfs_interceptor;
 import 'dart:js';
 
 import 'package:ipfs_gateway_redirect/chrome_help.dart';
-import 'settings.dart';
+import 'package:ipfs_gateway_redirect/settings.dart';
+import 'package:observe/observe.dart';
 
 // There is a Dart library for Chrome Apps and Extensions but it's pretty
 // broken so we're best off just accessing the JS API directly.
@@ -29,10 +30,10 @@ void main() {
   _setupContextMenu(settings);
   new WebRequestRedirect(_webRequest, settings);
 
-//  settings.changes.listen((_) {
-//    _setupContextMenu(settings);
-//    _setupPageStateMatcher(settings);
-//  });
+  settings.serverChanges.listen((List<PropertyChangeRecord> changes) {
+    _setupContextMenu(settings);
+    _setupPageStateMatcher(settings);
+  });
 }
 
 
@@ -131,12 +132,12 @@ class WebRequestRedirect {
     _setErrorListener();
     _setRequestListener();
 
-//    settings.changes.listen((_) {
-//      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
-//          .callMethod('removeListener', [_onErrorAction]);
-//      _setErrorListener();
-//      _errorMode = false;
-//    });
+    settings.serverChanges.listen((_) {
+      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+          .callMethod('removeListener', [_onErrorAction]);
+      _setErrorListener();
+      _errorMode = false;
+    });
   }
 
   void _onErrorAction(JsObject details) {
