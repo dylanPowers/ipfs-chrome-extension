@@ -4,7 +4,8 @@ Now we can share gateway.ipfs.io urls around and still use IPFS in a distributed
 fashion. Plus those not in the know or with a broken build will still have
 everything work fine for them. Yay! =)  
 
-Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo
+Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo  
+Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.3.1
 
 What's it do?
 -------------
@@ -16,6 +17,10 @@ to easily copy IPFS urls. This fixes urls so that they have the host correctly
 set to gateway.ipfs.io rather than localhost:8080. The url bar (aka Omnibox) icon 
 requires a simple click to copy the IFPS url, and links require a right click
 and where you would normally select "Copy link address" instead select "Copy as IPFS link".
+
+Extra features of v0.3.1 (not on the Chrome store):
+* File access - simply type ```/ipfs/QmZSnfkEfjowAAMVJoq2LmZJqdpT4uK6EtrcoWLqkMR4UY```
+* HTTPS access - works for resources, like cat pictures, found on [https pages](https://groups.google.com/d/msg/ipfs-users/IKrDkUnIk7E/b2zS2c-KysQJ).
 
 Building
 --------
