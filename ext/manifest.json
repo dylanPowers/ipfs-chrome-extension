@@ -1,7 +1,7 @@
 {
   "name": "IPFS Gateway Redirect",
   "description": "Access gateway.ipfs.io urls the way they were meant: from your locally running ipfs daemon",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "manifest_version": 2,
   "background": {
     "page": "background.html",
@@ -30,8 +30,6 @@
     "storage",
     "webRequest",
     "webRequestBlocking",
-    "file:///ipfs/*",
-    "file:///ipns/*",
-    "http://*/*"
+    "<all_urls>"
   ]
 }
