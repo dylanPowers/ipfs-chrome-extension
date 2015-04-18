@@ -203,18 +203,10 @@ class WebRequestRedirect {
 
   bool _errorMode = false;
   var _lastErrorTime = new DateTime(0);
-  List<String> get _requestUrls {
-    var urls = makeIpfsGlobs('file://');
-    if (_errorMode) {
-      urls.addAll(makeIpfsGlobs(settings.server));
-    } else {
-      urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
-    }
-
-    return urls;
-  }
+  List<Uri> _ipfsRequestUrls;
 
   WebRequestRedirect(this.chromeWebRequest, this.settings) {
+    _generateRequestUrls();
     _setErrorListener();
     _setRequestListener();
 
@@ -226,24 +218,39 @@ class WebRequestRedirect {
     });
   }
 
-  void _onErrorAction(JsObject details) {
-    // Chrome will give an error message, but there isn't a defined way of
-    // identifying the problem. Nor is there a way to tell Chrome how to
-    // resolve the problem. Luckily Chrome will automatically reattempt the
-    // request. We just have to be ready for it.
-    _errorMode = true;
-    _lastErrorTime = new DateTime.now();
-    _setRequestListener();
+  void _generateRequestUrls() {
+    var urls = makeIpfsGlobs('file://');
+    if (_errorMode) {
+      urls.addAll(makeIpfsGlobs(settings.server));
+    } else {
+      urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
+    }
+    _ipfsRequestUrls = urls.map((url) => Uri.parse(url)).toList(growable: false);
   }
 
-  JsObject _onBeforeRequestAction(JsObject data) {
+  bool _isIpfsUrl(Uri url) {
+    bool urlMatch = false;
+    if (url.pathSegments.isNotEmpty &&
+        (url.pathSegments.first == 'ipfs' || url.pathSegments.first == 'ipns')) {
+      urlMatch = url.host == settings.host && url.port == settings.port;
+
+      for (int i = 0; i < _ipfsRequestUrls.length && !urlMatch; ++i) {
+        urlMatch = _ipfsRequestUrls[i].host == url.host &&
+                    _ipfsRequestUrls[i].port == url.port;
+      }
+    }
+
+    return urlMatch;
+  }
+
+  String _handleIpfsRequest(JsObject data, Uri ipfsUrl) {
     if (_errorMode &&
         new DateTime.now().difference(_lastErrorTime) > _ERROR_COOL_DOWN_PERIOD) {
       _errorMode = false;
+      _generateRequestUrls();
       _setRequestListener();
     }
 
-    var ipfsUrl = Uri.parse(data['url']);
     if (ipfsUrl.scheme == 'file') {
       ipfsUrl = _parseFileUrl(data['url']);
     }
@@ -257,10 +264,63 @@ class WebRequestRedirect {
     } else {
       localUrl = ipfsUrl.replace(scheme: 'http', host: 'gateway.ipfs.io', port: 80);
     }
+  }
 
-    return new JsObject.jsify({
-      'redirectUrl': localUrl.toString()
+  String _handleOtherRequest(Uri url) {
+    String redirectUrl = '';
+
+    var req = new HttpRequest();
+    req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
+    req.onLoad.listen((event) {
+      if ((event.target as HttpRequest).status < 400) {
+        redirectUrl = 'http://${settings.host}:${settings.port}/ipns/${url.replace(scheme: '')}';
+      }
     });
+    req.send();
+
+    return redirectUrl;
+  }
+
+  void _onErrorAction(JsObject details) {
+    // Chrome will give an error message, but there isn't a defined way of
+    // identifying the problem. Nor is there a way to tell Chrome how to
+    // resolve the problem. Luckily Chrome will automatically reattempt the
+    // request. We just have to be ready for it.
+    _errorMode = true;
+    _lastErrorTime = new DateTime.now();
+    _generateRequestUrls();
+    _setRequestListener();
+  }
+
+  /**
+   * This gets run on every single request the browser makes. It is pertinent
+   * that it be FAST!
+   */
+  JsObject _onBeforeRequestAction(JsObject data) {
+    Uri url;
+    try {
+      url = Uri.parse(data['url']);
+    } on FormatException {
+      // Some websites like to add invalid characters to their query strings
+      // that their servers must like but the uri parser has beef with.
+      // We'll just continue on with life like it never happened.
+      return null;
+    }
+
+    String redirectUrl = '';
+    if (_isIpfsUrl(url)) {
+      redirectUrl = _handleIpfsRequest(data, url);
+    } else {
+      redirectUrl = _handleOtherRequest(url);
+    }
+
+    if (redirectUrl != '') {
+      return new JsObject.jsify({
+        'redirectUrl': redirectUrl
+      });
+    }
+
+    return null;
   }
 
   /**
@@ -292,7 +352,7 @@ class WebRequestRedirect {
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
         .callMethod('addListener', [
           _onBeforeRequestAction,
-          new JsObject.jsify({'urls': _requestUrls}),
+          new JsObject.jsify({'urls': ['<all_urls>'] /*_requestUrls*/}),
           new JsObject.jsify(['blocking'])
     ]);
   }
