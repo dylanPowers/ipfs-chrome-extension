@@ -194,6 +194,10 @@ class HostServerSettings {
   }
 }
 
+class DomainCacheItem {
+  DateTime cacheTime;
+  bool ipnsRecord;
+}
 
 class WebRequestRedirect {
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
@@ -201,6 +205,7 @@ class WebRequestRedirect {
   final JsObject chromeWebRequest;
   final HostServerSettings settings;
 
+  final Map<String, DomainCacheItem> _domainCache;
   bool _errorMode = false;
   var _lastErrorTime = new DateTime(0);
   List<Uri> _ipfsRequestUrls;
