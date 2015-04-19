@@ -108,7 +108,6 @@ void _setupContextMenu(HostServerSettings settings) {
   // compiling to JS. Apparently an Array isn't always an Array in JS? Or
   // maybe the Chrome API parses the object in such a way that the property
   // can't be accessed?
-  // https://twitter.com/dylankpowers/status/573037501171933187
   props['targetUrlPatterns'] = new JsArray.from(props['targetUrlPatterns']);
   _contextMenus.callMethod('create', [props]);
 }
@@ -233,21 +232,6 @@ class WebRequestRedirect {
     _ipfsRequestUrls = urls.map((url) => Uri.parse(url)).toList(growable: false);
   }
 
-  bool _isIpfsUrl(Uri url) {
-    bool urlMatch = false;
-    if (url.pathSegments.isNotEmpty &&
-        (url.pathSegments.first == 'ipfs' || url.pathSegments.first == 'ipns')) {
-      urlMatch = url.host == settings.host && url.port == settings.port;
-
-      for (int i = 0; i < _ipfsRequestUrls.length && !urlMatch; ++i) {
-        urlMatch = _ipfsRequestUrls[i].host == url.host &&
-                    _ipfsRequestUrls[i].port == url.port;
-      }
-    }
-
-    return urlMatch;
-  }
-
   String _handleIpfsRequest(JsObject data, Uri ipfsUrl) {
     if (_errorMode &&
         new DateTime.now().difference(_lastErrorTime) > _ERROR_COOL_DOWN_PERIOD) {
@@ -286,6 +270,21 @@ class WebRequestRedirect {
     return redirectUrl;
   }
 
+  bool _isIpfsUrl(Uri url) {
+    bool urlMatch = false;
+    if (url.pathSegments.isNotEmpty &&
+        (url.pathSegments.first == 'ipfs' || url.pathSegments.first == 'ipns')) {
+      urlMatch = url.host == settings.host && url.port == settings.port;
+
+      for (int i = 0; i < _ipfsRequestUrls.length && !urlMatch; ++i) {
+        urlMatch = _ipfsRequestUrls[i].host == url.host &&
+                    _ipfsRequestUrls[i].port == url.port;
+      }
+    }
+
+    return urlMatch;
+  }
+
   void _onErrorAction(JsObject details) {
     // Chrome will give an error message, but there isn't a defined way of
     // identifying the problem. Nor is there a way to tell Chrome how to
@@ -308,7 +307,7 @@ class WebRequestRedirect {
     } on FormatException {
       // Some websites like to add invalid characters to their query strings
       // that their servers must like but the uri parser has beef with.
-      // We'll just continue on with life like it never happened.
+      // We'll just continue on with life like the request never happened.
       return null;
     }
 
@@ -330,14 +329,15 @@ class WebRequestRedirect {
 
   /**
    * File URI's sometimes have the URI fragment character '#'
-   * encoded by Chrome because it wants to be "smart" when in reality it's
-   * being idiotic. It's dependent on how the user inputs the URI
+   * encoded by Chrome because it wants to be "smart".
+   * It's dependent on how the user inputs the URI
    * into the browser URL bar. Unfortunately it's impossible to
    * differentiate between the cases; i.e. typing:
    *         /ipfs/<hash>/app#stuff vs file:///ipfs/<hash>/app#stuff
    * Generally people don't have hashes in their filenames, so I'm
-   * exchanging one completely idiotic idea for something that's slightly
-   * less idiotic.
+   * exchanging one idiotic idea for something that's slightly
+   * less idiotic for our purposes. If someone really needs a '#' character
+   * for a filename, just double encode it in the url bar.
    */
   static Uri _parseFileUrl(String fileUrl) {
     return Uri.parse(Uri.decodeComponent(fileUrl));
