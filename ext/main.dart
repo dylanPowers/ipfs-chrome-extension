@@ -195,9 +195,9 @@ class HostServerSettings {
 
 class DomainCacheItem {
   DateTime cacheTime;
-  bool ipnsRecordExists;
+  bool ipnsAvailable;
 
-  DomainCacheItem(this.cacheTime, this.ipnsRecordExists);
+  DomainCacheItem(this.cacheTime, this.ipnsAvailable);
 }
 
 class WebRequestRedirect {
@@ -213,51 +213,26 @@ class WebRequestRedirect {
   List<Uri> _ipfsRequestUrls;
 
   WebRequestRedirect(this.chromeWebRequest, this.settings) {
-    _generateRequestUrls();
-    _setErrorListener();
-    _setRequestListener();
-
-    settings.changes.listen((_) {
-      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
-          .callMethod('removeListener', [_onErrorAction]);
-      _setErrorListener();
-      _errorMode = false;
-    });
-
-    new Timer.periodic(_CACHE_DURATION * 10, (_) {
-      var keysToRemove = [];
-      var oldestCacheTime = new DateTime.now().subtract(_CACHE_DURATION);
-      _domainCache.forEach((k, v) {
-        if (v.cacheTime.isBefore(oldestCacheTime)) {
-          keysToRemove.add(k);
-        }
-      });
-      keysToRemove.forEach((k) => _domainCache.remove(k));
-    });
+    _initIpfsRequestUrls();
+    _setIpfsRequestErrorListener();
+    _setChromeRequestListener();
+    _initSettingsListener();
+    _initCacheCleaner();
   }
 
   void _disableErrorMode() {
     _errorMode = false;
-    _generateRequestUrls();
-    _setRequestListener();
+    _initIpfsRequestUrls();
+    _setChromeRequestListener();
   }
 
   void _enableErrorMode() {
     _errorMode = true;
     _lastErrorTime = new DateTime.now();
-    _generateRequestUrls();
-    _setRequestListener();
+    _initIpfsRequestUrls();
+    _setChromeRequestListener();
   }
 
-  void _generateRequestUrls() {
-    var urls = makeIpfsGlobs('file://');
-    if (_errorMode) {
-      urls.addAll(makeIpfsGlobs(settings.server));
-    } else {
-      urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
-    }
-    _ipfsRequestUrls = urls.map((url) => Uri.parse(url)).toList(growable: false);
-  }
 
   String _handleIpfsRequest(JsObject data, Uri ipfsUrl) {
     if (ipfsUrl.scheme == 'file') {
@@ -280,6 +255,12 @@ class WebRequestRedirect {
   String _handleOtherRequest(Uri url) {
     String redirectUrl = '';
 
+    // A note on error mode: While we could fail back to the gateway.ipfs.io
+    // server, we might as well just use the original web server. While it is
+    // feasible that someone could create a domain that only points into ipfs,
+    // it would be reasonably expected that they'd share
+    // http://gateway.ipfs.io/ipns/<domain> as
+    // a url so that those outside of IPFS would have easy access.
     if (!_errorMode &&
         ((url.scheme == 'http' && url.port == 80) ||
          (url.scheme == 'https' && url.port == 443))) {
@@ -287,25 +268,51 @@ class WebRequestRedirect {
       var ipnsUrl = 'http://${settings.host}:${settings.port}/ipns/${url.replace(scheme: '')}';
       if (_domainCache.containsKey(cacheKey) &&
           _domainCache[cacheKey].cacheTime.isAfter(new DateTime.now().subtract(_CACHE_DURATION))) {
-        if (_domainCache[cacheKey].ipnsRecordExists) {
+        if (_domainCache[cacheKey].ipnsAvailable) {
           redirectUrl = ipnsUrl;
         }
       } else {
-        var req = new HttpRequest();
-        req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
-        req.onLoad.listen((event) {
-          if ((event.target as HttpRequest).status < 400) {
-            redirectUrl = ipnsUrl;
-            _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), true);
-          } else {
-            _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), false);
-          }
-        });
-        req.send();
+        var ipnsAvailable = _requestIpnsAvailability(url.host);
+        _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), ipnsAvailable);
+        if (ipnsAvailable) {
+          redirectUrl = ipnsUrl;
+        }
       }
     }
 
     return redirectUrl;
+  }
+
+  void _initCacheCleaner() {
+    new Timer.periodic(_CACHE_DURATION * 10, (_) {
+      var keysToRemove = [];
+      var oldestCacheTime = new DateTime.now().subtract(_CACHE_DURATION);
+      _domainCache.forEach((k, v) {
+      if (v.cacheTime.isBefore(oldestCacheTime)) {
+          keysToRemove.add(k);
+        }
+      });
+      keysToRemove.forEach((k) => _domainCache.remove(k));
+    });
+  }
+
+  void _initIpfsRequestUrls() {
+    var urls = makeIpfsGlobs('file://');
+    if (_errorMode) {
+      urls.addAll(makeIpfsGlobs(settings.server));
+    } else {
+      urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
+    }
+    _ipfsRequestUrls = urls.map((url) => Uri.parse(url)).toList(growable: false);
+  }
+
+  void _initSettingsListener() {
+    settings.changes.listen((_) {
+      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+          .callMethod('removeListener', [_onErrorAction]);
+      _setIpfsRequestErrorListener();
+      _errorMode = false;
+    });
   }
 
   bool _isIpfsUrl(Uri url) {
@@ -323,17 +330,9 @@ class WebRequestRedirect {
     return urlMatch;
   }
 
-  void _onErrorAction(JsObject details) {
-    // Chrome will give an error message, but there isn't a defined way of
-    // identifying the problem. Nor is there a way to tell Chrome how to
-    // resolve the problem. Luckily Chrome will automatically reattempt the
-    // request. We just have to be ready for it.
-    _enableErrorMode();
-  }
-
   /**
    * This gets run on every single request the browser makes. It is pertinent
-   * that it be FAST!
+   * for it to be FAST!
    */
   JsObject _onBeforeRequestAction(JsObject data) {
     if (_errorMode &&
@@ -341,30 +340,36 @@ class WebRequestRedirect {
       _disableErrorMode();
     }
 
-    Uri url;
+    JsObject redirectJsObj;
     try {
-      url = Uri.parse(data['url']);
+      Uri url = Uri.parse(data['url']);
+      String redirectUrl = '';
+      if (_isIpfsUrl(url)) {
+        redirectUrl = _handleIpfsRequest(data, url);
+      } else {
+        redirectUrl = _handleOtherRequest(url);
+      }
+
+      if (redirectUrl != '') {
+        redirectJsObj = new JsObject.jsify({
+          'redirectUrl': redirectUrl
+        });
+      }
     } on FormatException {
       // Some websites like to add invalid characters to their query strings
       // that their servers must like but the uri parser has beef with.
       // We'll just continue on with life like the request never happened.
-      return null;
     }
 
-    String redirectUrl = '';
-    if (_isIpfsUrl(url)) {
-      redirectUrl = _handleIpfsRequest(data, url);
-    } else {
-      redirectUrl = _handleOtherRequest(url);
-    }
+    return redirectJsObj;
+  }
 
-    if (redirectUrl != '') {
-      return new JsObject.jsify({
-        'redirectUrl': redirectUrl
-      });
-    }
-
-    return null;
+  void _onErrorAction(JsObject details) {
+    // Chrome will give an error message, but there isn't a defined way of
+    // identifying the problem. Nor is there a way to tell Chrome how to
+    // resolve the problem. Luckily Chrome will automatically reattempt the
+    // request. We just have to be ready for it.
+    _enableErrorMode();
   }
 
   /**
@@ -383,7 +388,21 @@ class WebRequestRedirect {
     return Uri.parse(Uri.decodeComponent(fileUrl));
   }
 
-  void _setErrorListener() {
+  bool _requestIpnsAvailability(String host) {
+    var req = new HttpRequest();
+    req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
+
+    bool ipnsAvailable;
+    req.onLoad.listen((event) {
+      ipnsAvailable = (event.target as HttpRequest).status < 400;
+    });
+
+    req.send();
+
+    return ipnsAvailable;
+  }
+
+  void _setIpfsRequestErrorListener() {
     dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
         .callMethod('addListener', [
           _onErrorAction,
@@ -391,7 +410,7 @@ class WebRequestRedirect {
     ]);
   }
   
-  void _setRequestListener() {
+  void _setChromeRequestListener() {
     var urlsToListen = ['http://*/', 'https://*/'];
     urlsToListen.addAll(makeIpfsGlobs('file://'));
 
