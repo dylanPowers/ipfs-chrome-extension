@@ -280,8 +280,10 @@ class WebRequestRedirect {
   String _handleOtherRequest(Uri url) {
     String redirectUrl = '';
 
-    if (!_errorMode && (url.scheme == 'http' || url.scheme == 'https')) {
-      var cacheKey = '${url.host}:${url.port}';
+    if (!_errorMode &&
+        ((url.scheme == 'http' && url.port == 80) ||
+         (url.scheme == 'https' && url.port == 443))) {
+      var cacheKey = url.host;
       var ipnsUrl = 'http://${settings.host}:${settings.port}/ipns/${url.replace(scheme: '')}';
       if (_domainCache.containsKey(cacheKey) &&
           _domainCache[cacheKey].cacheTime.isAfter(new DateTime.now().subtract(_CACHE_DURATION))) {
