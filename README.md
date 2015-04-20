@@ -5,7 +5,7 @@ fashion. Plus those not in the know or with a broken build will still have
 everything work fine for them. Yay! =)  
 
 Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo  
-Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.3.1
+Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.4.0
 
 What's it do?
 -------------
@@ -20,7 +20,10 @@ and where you would normally select "Copy link address" instead select "Copy as 
 
 Extra features of v0.3.1 (not on the Chrome store):
 * File access - simply type ```/ipfs/QmZSnfkEfjowAAMVJoq2LmZJqdpT4uK6EtrcoWLqkMR4UY```
-* HTTPS access - works for resources, like cat pictures, found on [https pages](https://groups.google.com/d/msg/ipfs-users/IKrDkUnIk7E/b2zS2c-KysQJ).
+* HTTPS access - works for resources, like cat pictures, found on 
+    [https pages](https://groups.google.com/d/msg/ipfs-users/IKrDkUnIk7E/b2zS2c-KysQJ).
+* Domain name redirection - type `http://ipfs.git.sexy` and get redirected to 
+    `/ipns/ipfs.git.sexy` if it exists
 
 Building
 --------
