@@ -411,7 +411,7 @@ class WebRequestRedirect {
   }
   
   void _setChromeRequestListener() {
-    var urlsToListen = ['http://*/', 'https://*/'];
+    var urlsToListen = ['http://*/*', 'https://*/*'];
     urlsToListen.addAll(makeIpfsGlobs('file://'));
 
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
