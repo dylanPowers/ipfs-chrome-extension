@@ -390,7 +390,7 @@ class WebRequestRedirect {
 
   bool _requestIpnsAvailability(String host) {
     var req = new HttpRequest();
-    req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
+    req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${host}', async: false);
 
     bool ipnsAvailable;
     req.onLoad.listen((event) {
