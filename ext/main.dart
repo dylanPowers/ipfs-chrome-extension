@@ -195,16 +195,19 @@ class HostServerSettings {
 
 class DomainCacheItem {
   DateTime cacheTime;
-  bool ipnsRecord;
+  bool ipnsRecordExists;
+
+  DomainCacheItem(this.cacheTime, this.ipnsRecordExists);
 }
 
 class WebRequestRedirect {
+  static const _CACHE_DURATION = const Duration(minutes: 1);
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
 
   final JsObject chromeWebRequest;
   final HostServerSettings settings;
 
-  final Map<String, DomainCacheItem> _domainCache;
+  final _domainCache = new Map<String, DomainCacheItem>();
   bool _errorMode = false;
   var _lastErrorTime = new DateTime(0);
   List<Uri> _ipfsRequestUrls;
@@ -220,6 +223,30 @@ class WebRequestRedirect {
       _setErrorListener();
       _errorMode = false;
     });
+
+    new Timer.periodic(_CACHE_DURATION * 10, (_) {
+      var keysToRemove = [];
+      var oldestCacheTime = new DateTime.now().subtract(_CACHE_DURATION);
+      _domainCache.forEach((k, v) {
+        if (v.cacheTime.isBefore(oldestCacheTime)) {
+          keysToRemove.add(k);
+        }
+      });
+      keysToRemove.forEach((k) => _domainCache.remove(k));
+    });
+  }
+
+  void _disableErrorMode() {
+    _errorMode = false;
+    _generateRequestUrls();
+    _setRequestListener();
+  }
+
+  void _enableErrorMode() {
+    _errorMode = true;
+    _lastErrorTime = new DateTime.now();
+    _generateRequestUrls();
+    _setRequestListener();
   }
 
   void _generateRequestUrls() {
@@ -233,13 +260,6 @@ class WebRequestRedirect {
   }
 
   String _handleIpfsRequest(JsObject data, Uri ipfsUrl) {
-    if (_errorMode &&
-        new DateTime.now().difference(_lastErrorTime) > _ERROR_COOL_DOWN_PERIOD) {
-      _errorMode = false;
-      _generateRequestUrls();
-      _setRequestListener();
-    }
-
     if (ipfsUrl.scheme == 'file') {
       ipfsUrl = _parseFileUrl(data['url']);
     }
@@ -253,19 +273,35 @@ class WebRequestRedirect {
     } else {
       localUrl = ipfsUrl.replace(scheme: 'http', host: 'gateway.ipfs.io', port: 80);
     }
+
+    return localUrl.toString();
   }
 
   String _handleOtherRequest(Uri url) {
     String redirectUrl = '';
 
-    var req = new HttpRequest();
-    req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
-    req.onLoad.listen((event) {
-      if ((event.target as HttpRequest).status < 400) {
-        redirectUrl = 'http://${settings.host}:${settings.port}/ipns/${url.replace(scheme: '')}';
+    if (!_errorMode && (url.scheme == 'http' || url.scheme == 'https')) {
+      var cacheKey = '${url.host}:${url.port}';
+      var ipnsUrl = 'http://${settings.host}:${settings.port}/ipns/${url.replace(scheme: '')}';
+      if (_domainCache.containsKey(cacheKey) &&
+          _domainCache[cacheKey].cacheTime.isAfter(new DateTime.now().subtract(_CACHE_DURATION))) {
+        if (_domainCache[cacheKey].ipnsRecordExists) {
+          redirectUrl = ipnsUrl;
+        }
+      } else {
+        var req = new HttpRequest();
+        req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${url.host}', async: false);
+        req.onLoad.listen((event) {
+          if ((event.target as HttpRequest).status < 400) {
+            redirectUrl = ipnsUrl;
+            _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), true);
+          } else {
+            _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), false);
+          }
+        });
+        req.send();
       }
-    });
-    req.send();
+    }
 
     return redirectUrl;
   }
@@ -290,10 +326,7 @@ class WebRequestRedirect {
     // identifying the problem. Nor is there a way to tell Chrome how to
     // resolve the problem. Luckily Chrome will automatically reattempt the
     // request. We just have to be ready for it.
-    _errorMode = true;
-    _lastErrorTime = new DateTime.now();
-    _generateRequestUrls();
-    _setRequestListener();
+    _enableErrorMode();
   }
 
   /**
@@ -301,6 +334,11 @@ class WebRequestRedirect {
    * that it be FAST!
    */
   JsObject _onBeforeRequestAction(JsObject data) {
+    if (_errorMode &&
+        new DateTime.now().subtract(_ERROR_COOL_DOWN_PERIOD).isAfter(_lastErrorTime)) {
+      _disableErrorMode();
+    }
+
     Uri url;
     try {
       url = Uri.parse(data['url']);
@@ -352,12 +390,15 @@ class WebRequestRedirect {
   }
   
   void _setRequestListener() {
+    var urlsToListen = ['http://*/', 'https://*/'];
+    urlsToListen.addAll(makeIpfsGlobs('file://'));
+
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
         .callMethod('removeListener', [_onBeforeRequestAction]);
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
         .callMethod('addListener', [
           _onBeforeRequestAction,
-          new JsObject.jsify({'urls': ['<all_urls>'] /*_requestUrls*/}),
+          new JsObject.jsify({'urls': urlsToListen}),
           new JsObject.jsify(['blocking'])
     ]);
   }
