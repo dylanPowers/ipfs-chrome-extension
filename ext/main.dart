@@ -233,10 +233,9 @@ class WebRequestRedirect {
     _setChromeRequestListener();
   }
 
-
-  String _handleIpfsRequest(JsObject data, Uri ipfsUrl) {
+  String _handleIpfsRequest(String rawUrl, Uri ipfsUrl) {
     if (ipfsUrl.scheme == 'file') {
-      ipfsUrl = _parseFileUrl(data['url']);
+      ipfsUrl = _parseFileUrl(rawUrl);
     }
 
     // Chrome doesn't like file based apps much. Always use the HTTP API.
@@ -274,10 +273,14 @@ class WebRequestRedirect {
           redirectUrl = ipnsUrl;
         }
       } else {
-        var ipnsAvailable = _requestIpnsAvailability(url.host);
-        _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), ipnsAvailable);
-        if (ipnsAvailable) {
-          redirectUrl = ipnsUrl;
+        try {
+          var ipnsAvailable = _requestIpnsAvailability(url.host);
+          _domainCache[cacheKey] = new DomainCacheItem(new DateTime.now(), ipnsAvailable);
+          if (ipnsAvailable) {
+            redirectUrl = ipnsUrl;
+          }
+        } catch (_) {
+          _enableErrorMode();
         }
       }
     }
@@ -310,10 +313,12 @@ class WebRequestRedirect {
 
   void _initSettingsListener() {
     settings.changes.listen((_) {
-      dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
-          .callMethod('removeListener', [_onErrorAction]);
-      _setIpfsRequestErrorListener();
-      _errorMode = false;
+      if (_errorMode) {
+        _disableErrorMode();
+      } else {
+        _setIpfsRequestErrorListener();
+        _setChromeRequestListener();
+      }
     });
   }
 
@@ -397,22 +402,20 @@ class WebRequestRedirect {
     return Uri.parse(Uri.decodeComponent(fileUrl));
   }
 
+  /**
+   * Throws an exception when the request fails.
+   */
   bool _requestIpnsAvailability(String host) {
     var req = new HttpRequest();
     req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${host}', async: false);
 
-    bool ipnsAvailable = false;
-    try {
-      req.send();
-      ipnsAvailable = req.status < 400;
-    } catch (_) {
-      _enableErrorMode();
-    }
-
-    return ipnsAvailable;
+    req.send();
+    return req.status < 400;
   }
 
   void _setIpfsRequestErrorListener() {
+    dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
+        .callMethod('removeListener', [_onErrorAction]);
     dartifyChromeEvent(chromeWebRequest, 'onErrorOccurred')
         .callMethod('addListener', [
           _onErrorAction,
