@@ -201,7 +201,7 @@ class DomainCacheItem {
 }
 
 class WebRequestRedirect {
-  static const _CACHE_DURATION = const Duration(minutes: 1);
+  static const _CACHE_DURATION = const Duration(minutes: 10);
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
 
   final JsObject chromeWebRequest;
@@ -284,7 +284,7 @@ class WebRequestRedirect {
   }
 
   void _initCacheCleaner() {
-    new Timer.periodic(_CACHE_DURATION * 10, (_) {
+    new Timer.periodic(new Duration(minutes: 5), (_) {
       var keysToRemove = [];
       var oldestCacheTime = new DateTime.now().subtract(_CACHE_DURATION);
       _domainCache.forEach((k, v) {
@@ -392,12 +392,13 @@ class WebRequestRedirect {
     var req = new HttpRequest();
     req.open('GET', 'http://${settings.host}:${settings.port}/ipns/${host}', async: false);
 
-    bool ipnsAvailable;
-    req.onLoad.listen((event) {
-      ipnsAvailable = (event.target as HttpRequest).status < 400;
-    });
-
-    req.send();
+    bool ipnsAvailable = false;
+    try {
+      req.send();
+      ipnsAvailable = req.status < 400;
+    } catch (_) {
+      _enableErrorMode();
+    }
 
     return ipnsAvailable;
   }
