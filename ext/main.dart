@@ -211,8 +211,11 @@ class WebRequestRedirect {
   bool _errorMode = false;
   var _lastErrorTime = new DateTime(0);
   List<Uri> _ipfsRequestUrls;
+  Function _onBeforeRequestActionWrapper;
 
   WebRequestRedirect(this.chromeWebRequest, this.settings) {
+    _onBeforeRequestActionWrapper = (obj) => _onBeforeRequestAction(obj);
+
     _initIpfsRequestUrls();
     _setIpfsRequestErrorListener();
     _setChromeRequestListener();
@@ -431,10 +434,10 @@ class WebRequestRedirect {
     }
 
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
-        .callMethod('removeListener', [_onBeforeRequestAction]);
+        .callMethod('removeListener', [_onBeforeRequestActionWrapper]);
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
         .callMethod('addListener', [
-          _onBeforeRequestAction,
+          _onBeforeRequestActionWrapper,
           new JsObject.jsify({'urls': urlsToListen}),
           new JsObject.jsify(['blocking'])
     ]);
