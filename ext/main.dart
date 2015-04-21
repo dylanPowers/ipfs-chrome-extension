@@ -260,7 +260,9 @@ class WebRequestRedirect {
     // feasible that someone could create a domain that only points into ipfs,
     // it would be reasonably expected that they'd share
     // http://gateway.ipfs.io/ipns/<domain> as
-    // a url so that those outside of IPFS would have easy access.
+    // a url so that those outside of IPFS would have easy access. There's also
+    // other considerations to think about: not spamming gateway.ipfs.io and
+    // the extent to which users trust gateway.ipfs.io.
     if (!_errorMode &&
         ((url.scheme == 'http' && url.port == 80) ||
          (url.scheme == 'https' && url.port == 443))) {
@@ -380,8 +382,8 @@ class WebRequestRedirect {
    * differentiate between the cases; i.e. typing:
    *         /ipfs/<hash>/app#stuff vs file:///ipfs/<hash>/app#stuff
    * Generally people don't have hashes in their filenames, so I'm
-   * exchanging one idiotic idea for something that's slightly
-   * less idiotic for our purposes. If someone really needs a '#' character
+   * exchanging one bad idea for something that's slightly
+   * less bad for our purposes. If someone really needs a '#' character
    * for a filename, just double encode it in the url bar.
    */
   static Uri _parseFileUrl(String fileUrl) {
