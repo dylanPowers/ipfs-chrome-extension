@@ -337,30 +337,37 @@ class WebRequestRedirect {
    * for it to be FAST!
    */
   JsObject _onBeforeRequestAction(JsObject data) {
+    String method = data['method'];
+    String urlString = data['url'];
     if (_errorMode &&
         new DateTime.now().subtract(_ERROR_COOL_DOWN_PERIOD).isAfter(_lastErrorTime)) {
       _disableErrorMode();
     }
 
     JsObject redirectJsObj;
-    try {
-      Uri url = Uri.parse(data['url']);
-      String redirectUrl = '';
-      if (_isIpfsUrl(url)) {
-        redirectUrl = _handleIpfsRequest(data, url);
-      } else {
-        redirectUrl = _handleOtherRequest(url);
-      }
 
-      if (redirectUrl != '') {
-        redirectJsObj = new JsObject.jsify({
-          'redirectUrl': redirectUrl
-        });
+    // Optimization: We're only concerned with GET requests.
+    // PUT, POST, DELETE, HEAD, or OPTIONS aren't used by the gateway.
+    if (method.toUpperCase() == 'GET') {
+      try {
+        Uri url = Uri.parse(urlString);
+        String redirectUrl = '';
+        if (_isIpfsUrl(url)) {
+          redirectUrl = _handleIpfsRequest(urlString, url);
+        } else {
+          redirectUrl = _handleOtherRequest(url);
+        }
+
+        if (redirectUrl != '') {
+          redirectJsObj = new JsObject.jsify({
+            'redirectUrl': redirectUrl
+          });
+        }
+      } on FormatException {
+        // Some websites like to add invalid characters to their query strings
+        // that their servers must like but the uri parser has beef with.
+        // We'll just continue on with life like the request never happened.
       }
-    } on FormatException {
-      // Some websites like to add invalid characters to their query strings
-      // that their servers must like but the uri parser has beef with.
-      // We'll just continue on with life like the request never happened.
     }
 
     return redirectJsObj;
@@ -414,8 +421,11 @@ class WebRequestRedirect {
   }
   
   void _setChromeRequestListener() {
-    var urlsToListen = ['http://*/*', 'https://*/*'];
-    urlsToListen.addAll(makeIpfsGlobs('file://'));
+    List<String> urlsToListen = _ipfsRequestUrls.map((url) => url.toString()).toList(growable: false);
+    if (settings.host == "127.0.0.1" || settings.host == "localhost") {
+      urlsToListen = ['http://*/*', 'https://*/*'];
+      urlsToListen.addAll(makeIpfsGlobs('file://'));
+    }
 
     dartifyChromeEvent(chromeWebRequest, 'onBeforeRequest')
         .callMethod('removeListener', [_onBeforeRequestAction]);
