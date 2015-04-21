@@ -359,17 +359,22 @@ class WebRequestRedirect {
     if (method.toUpperCase() == 'GET') {
       try {
         Uri url = Uri.parse(urlString);
-        String redirectUrl = '';
-        if (_isIpfsUrl(url)) {
-          redirectUrl = _handleIpfsRequest(urlString, url);
-        } else {
-          redirectUrl = _handleOtherRequest(url);
-        }
 
-        if (redirectUrl != '') {
-          redirectJsObj = new JsObject.jsify({
-            'redirectUrl': redirectUrl
-          });
+        // Optimization: IPFS requests don't have query parameters.
+        if (!url.hasQuery) {
+          print(url);
+          String redirectUrl = '';
+          if (_isIpfsUrl(url)) {
+            redirectUrl = _handleIpfsRequest(urlString, url);
+          } else {
+            redirectUrl = _handleOtherRequest(url);
+          }
+
+          if (redirectUrl != '') {
+            redirectJsObj = new JsObject.jsify({
+              'redirectUrl': redirectUrl
+            });
+          }
         }
       } on FormatException {
         // Some websites like to add invalid characters to their query strings
