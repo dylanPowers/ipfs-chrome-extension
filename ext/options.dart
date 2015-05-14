@@ -8,23 +8,43 @@ JsObject _runtime = context['chrome']['runtime'];
 
 void main() {
   _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
-      'options': 'hostServer'
+      'options': ['hostServer', 'dnsRedirect']
     }), null, _onOptionsResponse
   ]);
 }
 
 void _onOptionsResponse(JsObject response) {
-  var input = new ServerInput(document, response['host'] as String, response['port'] as int);
-  input.hostChanges.listen((host) {
+  var serverInput = new ServerInput(document, response['host'] as String, response['port'] as int);
+  var dnsRedirectInput = new DnsRedirectInput(document, response['dnsRedirect'] as bool);
+  serverInput.hostChanges.listen((host) {
     _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
       'host': host
     })]);
   });
-  input.portChanges.listen((port) {
+  serverInput.portChanges.listen((port) {
     _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
       'port': port
     })]);
   });
+  dnsRedirectInput.optionEnabledChanges.listen((dnsRedirect) {
+    _runtime.callMethod('sendMessage', [null, new JsObject.jsify({
+      'dnsRedirect': dnsRedirect
+    })]);
+  });
+}
+
+class DnsRedirectInput {
+  static const _DNS_REDIRECT_INPUT_ID = 'dns-redirect';
+
+  Stream<bool> get optionEnabledChanges =>
+    _optionInputEl.onClick.map((_) => _optionInputEl.checked);
+
+  final InputElement _optionInputEl;
+
+  DnsRedirectInput(HtmlDocument doc, bool initialOptionVal) :
+      _optionInputEl = doc.getElementById(_DNS_REDIRECT_INPUT_ID) {
+    _optionInputEl.checked = initialOptionVal;
+  }
 }
 
 class ServerInput {

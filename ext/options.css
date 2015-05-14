@@ -23,6 +23,10 @@ input[type="text"]:focus.input-error {
   border-color: #970010;
 }
 
+#dns-redirect-option {
+  margin-top: 4px;
+}
+
 #host-input {
   width: 80px;
 }

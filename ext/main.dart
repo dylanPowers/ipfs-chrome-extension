@@ -14,7 +14,7 @@ JsObject _webRequest = context['chrome']['webRequest'];
 
 
 void main() {
-  var settings = new HostServerSettings(_runtime, context['chrome']['storage']);
+  var settings = new Settings(_runtime, context['chrome']['storage']);
 
   addListenerToChromeEvent(_runtime, 'onInstalled', (_) {
     _setupPageStateMatcher(settings);
@@ -81,7 +81,7 @@ List<String> makeIpfsGlobs(String server) {
 }
 
 
-void _setupContextMenu(HostServerSettings settings) {
+void _setupContextMenu(Settings settings) {
   _contextMenus.callMethod('removeAll');
 
   var urlMatch = makeIpfsGlobs(settings.server);
@@ -113,7 +113,7 @@ void _setupContextMenu(HostServerSettings settings) {
 }
 
 
-void _setupPageStateMatcher(HostServerSettings settings) {
+void _setupPageStateMatcher(Settings settings) {
   var pageStateMatcherArg = new JsObject.jsify({
     'pageUrl': {
       // Chrome has globbing available everywhere but here
@@ -142,23 +142,30 @@ void _pageActionOnClickedAction(JsObject tab) {
 }
 
 
-class HostServerSettings {
+class Settings {
   Stream get changes => _changesController.stream;
   JsObject chromeStorage;
+  bool get dnsRedirect => _dnsRedirect;
   String get host => _host;
   int get port => _port;
   String get server => 'http://$host:$port';
 
   final _changesController = new StreamController.broadcast();
+  bool _dnsRedirect = false;
   String _host = 'localhost';
   int _port = 8080;
 
-  HostServerSettings(JsObject chromeRuntime, this.chromeStorage) {
+  Settings(JsObject chromeRuntime, this.chromeStorage) {
     addListenerToChromeEvent(chromeRuntime, 'onMessage', _handleRuntimeMsg);
 
-    chromeStorage['local'].callMethod('get', [new JsObject.jsify(['host', 'port']),
+    chromeStorage['local'].callMethod('get', [new JsObject.jsify(['host', 'port', 'dnsRedirect']),
                                              (JsObject settings) {
       bool valChanged = false;
+      if (settings['dnsRedirect'] != null) {
+        _dnsRedirect = settings['dnsRedirect'] as bool;
+        valChanged = true;
+      }
+
       if (settings['host'] != null) {
         _host = settings['host'] as String;
         valChanged = true;
@@ -176,16 +183,27 @@ class HostServerSettings {
   }
 
   void _handleRuntimeMsg(JsObject msg, JsObject sender, JsFunction response) {
+    if (msg['dnsRedirect'] != null) {
+      _dnsRedirect = msg['dnsRedirect'] as bool;
+      chromeStorage['local'].callMethod('set', [new JsObject.jsify({'dnsRedirect': _dnsRedirect})]);
+      _changesController.add(_dnsRedirect);
+    }
+
     if (msg['host'] != null) {
       _host = msg['host'] as String;
       chromeStorage['local'].callMethod('set', [new JsObject.jsify({'host': _host})]);
       _changesController.add(_host);
-    } else if (msg['port'] != null) {
+    }
+
+    if (msg['port'] != null) {
       _port = msg['port'] as int;
       chromeStorage['local'].callMethod('set', [new JsObject.jsify({'port': _port})]);
       _changesController.add(_port);
-    } else if (msg['options'] != null && msg['options'] == 'hostServer') {
+    }
+
+    if (msg['options'] != null) {
       response.apply([new JsObject.jsify({
+        'dnsRedirect': _dnsRedirect,
         'host': _host,
         'port': _port
       })]);
@@ -205,7 +223,7 @@ class WebRequestRedirect {
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
 
   final JsObject chromeWebRequest;
-  final HostServerSettings settings;
+  final Settings settings;
 
   final _domainCache = new Map<String, DomainCacheItem>();
   bool _errorMode = false;
@@ -214,6 +232,13 @@ class WebRequestRedirect {
   Function _onBeforeRequestActionWrapper;
 
   WebRequestRedirect(this.chromeWebRequest, this.settings) {
+
+    // Exists because of a glitch in dart2js
+    // http://code.google.com/p/dart/issues/detail?id=23283
+    // However, as of:
+    // Chromium	39.0.2171.0 (Developer Build)
+    // Dart	1.10.0
+    // this breaks in Dartium...can't win them all.
     _onBeforeRequestActionWrapper = (obj) => _onBeforeRequestAction(obj);
 
     _initIpfsRequestUrls();
@@ -366,7 +391,7 @@ class WebRequestRedirect {
           String redirectUrl = '';
           if (_isIpfsUrl(url)) {
             redirectUrl = _handleIpfsRequest(urlString, url);
-          } else {
+          } else if (settings.dnsRedirect){
             redirectUrl = _handleOtherRequest(url);
           }
 
@@ -433,7 +458,7 @@ class WebRequestRedirect {
   
   void _setChromeRequestListener() {
     List<String> urlsToListen = _ipfsRequestUrls.map((url) => url.toString()).toList(growable: false);
-    if (settings.host == "127.0.0.1" || settings.host == "localhost") {
+    if (settings.dnsRedirect) {
       urlsToListen = ['http://*/*', 'https://*/*'];
       urlsToListen.addAll(makeIpfsGlobs('file://'));
     }

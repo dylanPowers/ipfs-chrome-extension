@@ -7,6 +7,7 @@ everything work fine for them. Yay! =)
 Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo  
 Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.4.0
 
+
 What's it do?
 -------------
 It intercepts requests to `http://gateway.ipfs.io/(ipfs|ipns)/<hash>` on the
@@ -24,10 +25,18 @@ Extra features of the Github release version:
     [https pages](https://groups.google.com/d/msg/ipfs-users/IKrDkUnIk7E/b2zS2c-KysQJ).
 * Domain name redirection - type `ipfs.git.sexy` and get redirected to 
     `/ipns/ipfs.git.sexy`
+    
+#### About Domain Redirection
+This feature is disabled by default as it can have a negative impact on browser
+performance in certain instances. Those instances are rare, but they do happen.
+Note that with this option enabled, for every domain the browser makes a 
+request to, this extension is also making a request to your ipfs daemon to see 
+if a request to `/ipns/<domain>` would succeed or fail.
+
 
 Github Release Version
 -----------------------
-__Why is this not on the Chrome store?__  
+#### Why is this not on the Chrome store?  
 The Chrome store is more restrictive when it comes to file URI's and requires 
 those permissions to be listed as optional. Unfortunately, due to the issues 
 I found in https://github.com/dylanPowers/ipfs-chrome-extension/issues/4 optional 
@@ -35,7 +44,7 @@ permissions are impossible to use in this app. Therefore I figured I might as we
 leave that version as it is and have the version listed here be the more powerful 
 version.
 
-__How To Install__  
+#### How To Install  
 Open up chrome://extensions and drag-n-drop the crx file onto the page. If that 
 doesn't work because Chrome is being strange (it's happened to me a few times), 
 you can enable developer mode, unzip the zipped version to a safe location and 
