@@ -3,20 +3,23 @@
 <head>
   <link rel="stylesheet" href="options.css" /></head>
 <body>
-  <label id="server-input-label" for="server-input">Gateway:</label>
-  <div id="server-input">
-    <input id="host-input" class="option-input" type="text" placeholder="hostname"/>
-    <label class="option-label" for="port-input">:</label>
-    <input id="port-input" class="option-input" type="text" placeholder="port" maxlength="5"/>
-  </div>
+  <div id="options-container">
+    <div id="server-input-option">
+      <label id="server-input-label" for="server-input">Gateway:</label>
+      <div id="server-input">
+        <input id="host-input" class="option-input" type="text" placeholder="hostname"/>
+        <label class="option-label" for="port-input">:</label>
+        <input id="port-input" class="option-input" type="text" placeholder="port" maxlength="5"/>
+      </div>
+    </div>
 
-  <div id="dns-redirect-option">
-    <label id="dns-option-label" for="dns-redirect">
-      IPNS Domain Redirection (<a href="https://github.com/dylanPowers/ipfs-chrome-extension#about-domain-redirection" target="_blank"> ? </a>)
-    </label>
-    <input id="dns-redirect" type="checkbox" />
+    <div id="dns-redirect-option">
+      <label id="dns-option-label" for="dns-redirect">
+        Domain Redirection (<a href="https://github.com/dylanPowers/ipfs-chrome-extension#about-domain-redirection" target="_blank"> ? </a>)
+      </label>
+      <input id="dns-redirect" type="checkbox" />
+    </div>
   </div>
-
   <script type="application/dart" src="options.dart"></script>
 </body>
 </html>

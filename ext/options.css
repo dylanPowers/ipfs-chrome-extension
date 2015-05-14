@@ -23,12 +23,21 @@ input[type="text"]:focus.input-error {
   border-color: #970010;
 }
 
+#dns-redirect {
+  float: right;
+}
+
 #dns-redirect-option {
-  margin-top: 4px;
+  clear: both;
+  margin-top: 8px;
 }
 
 #host-input {
   width: 80px;
+}
+
+#options-container {
+  max-width: 360px;
 }
 
 #port-input {
@@ -39,10 +48,15 @@ input[type="text"]:focus.input-error {
   border: 2px solid #BFBFBF;
   border-radius: 2px;
   display: inline-block;
+  float: right;
 }
 
 #server-input-label {
   float: left;
   font-size: 14px;
   padding: 8px 4px 8px 0;
+}
+
+#server-input-option {
+  overflow: hidden;
 }
