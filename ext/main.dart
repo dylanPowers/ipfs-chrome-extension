@@ -387,7 +387,6 @@ class WebRequestRedirect {
 
         // Optimization: IPFS requests don't have query parameters.
         if (!url.hasQuery) {
-          print(url);
           String redirectUrl = '';
           if (_isIpfsUrl(url)) {
             redirectUrl = _handleIpfsRequest(urlString, url);
