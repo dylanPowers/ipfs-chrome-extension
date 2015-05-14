@@ -5,7 +5,7 @@ fashion. Plus those not in the know or with a broken build will still have
 everything work fine for them. Yay! =)  
 
 Chrome Store: https://chrome.google.com/webstore/detail/gifgeigleclkondjnmijdajabbhmoepo  
-Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.4.0
+Best version: https://github.com/dylanPowers/ipfs-chrome-extension/releases/tag/v0.4.1
 
 
 What's it do?
@@ -23,7 +23,7 @@ Extra features of the Github release version:
 * File access - simply type `/ipfs/QmZSnfkEfjowAAMVJoq2LmZJqdpT4uK6EtrcoWLqkMR4UY`
 * HTTPS access - works for resources, like cat pictures, found on 
     [https pages](https://groups.google.com/d/msg/ipfs-users/IKrDkUnIk7E/b2zS2c-KysQJ).
-* Domain name redirection - type `ipfs.git.sexy` and get redirected to 
+* IPNS domain name redirection - type `ipfs.git.sexy` and get redirected to 
     `/ipns/ipfs.git.sexy`
     
 #### About Domain Redirection
