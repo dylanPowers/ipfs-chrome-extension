@@ -219,7 +219,7 @@ class DomainCacheItem {
 }
 
 class WebRequestRedirect {
-  static const _CACHE_DURATION = const Duration(minutes: 10);
+  static const _CACHE_DURATION = const Duration(minutes: 2);
   static const _ERROR_COOL_DOWN_PERIOD = const Duration(seconds: 30);
 
   final JsObject chromeWebRequest;
