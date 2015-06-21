@@ -33,6 +33,8 @@ Note that with this option enabled, for every domain the browser makes a
 request to, this extension is also making a request to your ipfs daemon to see 
 if a request to `/ipns/<domain>` would succeed or fail.
 
+#### Privacy Considerations
+Go ahead and read the comments on [issue #5](https://github.com/dylanPowers/ipfs-chrome-extension/issues/5).
 
 Github Release Version
 -----------------------
