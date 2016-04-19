@@ -334,7 +334,12 @@ class WebRequestRedirect {
     if (_errorMode) {
       urls.addAll(makeIpfsGlobs(settings.server));
     } else {
+      urls.addAll(makeIpfsGlobs('https://gateway.ipfs.io'));
       urls.addAll(makeIpfsGlobs('http://gateway.ipfs.io'));
+	  urls.addAll(makeIpfsGlobs('https://ipfs.io'));
+      urls.addAll(makeIpfsGlobs('http://ipfs.io'));
+      urls.addAll(makeIpfsGlobs('https://ipfs.pics'));
+      urls.addAll(makeIpfsGlobs('http://ipfs.pics'));
     }
     _ipfsRequestUrls = urls.map((url) => Uri.parse(url)).toList(growable: false);
   }
